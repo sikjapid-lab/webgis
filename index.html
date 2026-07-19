@@ -1,1331 +1,482 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ژئوسینک — محیط وب GIS دوبعدی و سه‌بعدی</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
-<link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Vazirmatn:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-
-<style>
-  :root{
-    --bg:#080c11;
-    --panel:#0f151d;
-    --panel-2:#141c26;
-    --line:#1f2b38;
-    --text:#e7eef5;
-    --muted:#7f92a6;
-    --cyan:#2dd4e8;
-    --cyan-dim:#1a7d8a;
-    --amber:#f5a623;
-    --danger:#ef5b5b;
-    --radius:10px;
-    font-size:15px;
-  }
-  *{box-sizing:border-box;}
-  html,body{height:100%;margin:0;}
-  body{
-    background:var(--bg);
-    color:var(--text);
-    font-family:'Vazirmatn','JetBrains Mono',sans-serif;
-    overflow:hidden;
-  }
-  .en, .mono{ font-family:'JetBrains Mono', monospace; direction:ltr; unicode-bidi:isolate; }
-
-  #app{
-    display:grid;
-    grid-template-rows:56px 1fr 30px;
-    height:100vh;
-  }
-
-  /* ---------- HEADER ---------- */
-  header{
-    display:flex;
-    align-items:center;
-    gap:14px;
-    padding:0 16px;
-    background:linear-gradient(180deg, var(--panel), var(--panel) 90%, rgba(0,0,0,0));
-    border-bottom:1px solid var(--line);
-    z-index:950;
-    position:relative;
-  }
-  .brand{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding-left:14px;
-    border-left:1px solid var(--line);
-  }
-  .brand svg{ display:block; }
-  .brand-text{ display:flex; flex-direction:column; line-height:1.1; }
-  .brand-text b{
-    font-family:'Rajdhani',sans-serif;
-    font-size:18px;
-    letter-spacing:.5px;
-    font-weight:700;
-    color:var(--text);
-  }
-  .brand-text span{ font-size:10px; color:var(--muted); letter-spacing:.5px; }
-
-  .toolgroup{
-    display:flex;
-    align-items:center;
-    gap:4px;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:4px;
-    flex-wrap:nowrap;
-  }
-  .tbtn{
-    display:flex;
-    align-items:center;
-    gap:6px;
-    background:transparent;
-    border:none;
-    color:var(--muted);
-    padding:8px 11px;
-    border-radius:7px;
-    cursor:pointer;
-    font-family:inherit;
-    font-size:12.5px;
-    font-weight:500;
-    white-space:nowrap;
-    transition:background .15s, color .15s;
-  }
-  .tbtn:hover{ background:#1a2531; color:var(--text); }
-  .tbtn.active{ background:var(--cyan); color:#03181c; }
-  .tbtn svg{ width:16px; height:16px; flex:none; }
-
-  .search-wrap{
-    position:relative;
-    flex:1;
-    max-width:340px;
-  }
-  .search-wrap input{
-    width:100%;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:9px 40px 9px 12px;
-    color:var(--text);
-    font-family:inherit;
-    font-size:13px;
-    outline:none;
-  }
-  .search-wrap input:focus{ border-color:var(--cyan-dim); }
-  .search-wrap svg{
-    position:absolute;
-    right:12px; top:50%; transform:translateY(-50%);
-    width:15px; height:15px; color:var(--muted);
-    pointer-events:none;
-  }
-  #searchResults{
-    position:absolute;
-    top:calc(100% + 6px);
-    right:0; left:0;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:8px;
-    max-height:260px;
-    overflow:auto;
-    display:none;
-    z-index:980;
-  }
-  #searchResults div{
-    padding:9px 12px;
-    font-size:12.5px;
-    cursor:pointer;
-    border-bottom:1px solid var(--line);
-    color:#c7d3de;
-  }
-  #searchResults div:hover{ background:#1a2531; color:var(--text); }
-
-  .header-spacer{ flex:1; }
-
-  /* ---------- MAP AREA ---------- */
-  #mapsRow{
-    position:relative;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    height:100%;
-    min-height:0;
-  }
-  #mapsRow.mode-2d{ grid-template-columns:1fr 0; }
-  #mapsRow.mode-3d{ grid-template-columns:0 1fr; }
-
-  #leafletContainer, #cesiumContainer{
-    position:relative;
-    height:100%;
-    width:100%;
-    min-width:0;
-    overflow:hidden;
-  }
-  #leafletContainer{ border-left:2px solid var(--line); background:#0a1520; }
-  #cesiumContainer{ background:#0a1520; }
-
-  .pane-tag{
-    position:absolute;
-    top:10px; right:10px;
-    z-index:900;
-    background:rgba(8,12,17,.8);
-    backdrop-filter:blur(4px);
-    border:1px solid var(--line);
-    color:var(--cyan);
-    font-family:'Rajdhani',sans-serif;
-    font-weight:700;
-    letter-spacing:1px;
-    font-size:11px;
-    padding:4px 10px;
-    border-radius:6px;
-    pointer-events:none;
-  }
-  #cesiumContainer .pane-tag{ color:var(--amber); }
-
-  /* per-pane independent base layer selector */
-  .mini-select{
-    position:absolute;
-    top:10px; left:10px;
-    z-index:900;
-    background:rgba(15,21,29,.92);
-    border:1px solid var(--line);
-    color:var(--text);
-    font-family:inherit;
-    font-size:11.5px;
-    padding:7px 8px;
-    border-radius:7px;
-    max-width:190px;
-    outline:none;
-    cursor:pointer;
-  }
-  .mini-select:focus{ border-color:var(--cyan-dim); }
-
-  /* ---------- side floating panels ---------- */
-  .float-panel{
-    position:absolute;
-    z-index:870;
-    background:rgba(15,21,29,.95);
-    backdrop-filter:blur(6px);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    box-shadow:0 8px 24px rgba(0,0,0,.4);
-    color:var(--text);
-    font-size:12.5px;
-  }
-  #layersPanel{
-    top:52px; left:10px;
-    width:250px;
-    max-height:calc(100% - 130px);
-    overflow-y:auto;
-    padding:10px;
-    display:none;
-  }
-  #searchPanel{
-    top:52px; left:10px;
-    width:280px;
-    max-height:calc(100% - 130px);
-    overflow-y:auto;
-    padding:12px;
-    display:none;
-  }
-  #layersPanel h4, #resultsPanel h4, #searchPanel h4{
-    margin:14px 0 8px;
-    font-family:'Rajdhani',sans-serif;
-    font-size:12px;
-    letter-spacing:.8px;
-    color:var(--muted);
-    text-transform:uppercase;
-  }
-  #layersPanel h4:first-child, #searchPanel h4:first-child{ margin-top:0; }
-  .layer-opt{
-    display:flex; align-items:center; gap:8px;
-    padding:7px 8px; border-radius:6px; cursor:pointer;
-  }
-  .layer-opt:hover{ background:#1a2531; }
-  .layer-opt.sel{ background:rgba(45,212,232,.12); color:var(--cyan); }
-  .layer-opt .swatch{ width:14px; height:14px; border-radius:3px; flex:none; }
-
-  .overlay-opt{
-    display:flex; align-items:center; gap:8px;
-    padding:7px 8px; border-radius:6px; cursor:pointer;
-    color:#c7d3de;
-  }
-  .overlay-opt:hover{ background:#1a2531; }
-  .overlay-opt input[type=checkbox]{ accent-color:var(--cyan); width:14px; height:14px; cursor:pointer; }
-  .credit-note{ font-size:10px; color:var(--muted); padding:0 8px 4px; }
-
-  .panel-btn{
-    width:100%;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    color:var(--text);
-    padding:9px 8px;
-    border-radius:7px;
-    cursor:pointer;
-    font-family:inherit;
-    font-size:12px;
-    margin-top:6px;
-  }
-  .panel-btn:hover{ border-color:var(--cyan-dim); color:var(--cyan); }
-  .panel-btn.primary{ background:var(--cyan); color:#03181c; font-weight:700; border-color:var(--cyan); }
-  .panel-btn.primary:hover{ opacity:.9; color:#03181c; }
-  .panel-btn.danger{ border-color:var(--danger); color:var(--danger); }
-
-  #searchPanel label{ display:block; font-size:11px; color:var(--muted); margin:8px 0 4px; }
-  #searchPanel select, #searchPanel input[type=text], #searchPanel input[type=number]{
-    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
-    padding:7px 8px; border-radius:6px; font-family:inherit; font-size:12px;
-  }
-  .dim-row{ display:flex; gap:6px; }
-  .dim-row > div{ flex:1; }
-  .hint-text{ font-size:10.5px; color:var(--muted); line-height:1.6; margin-top:6px; }
-
-  #resultsPanel{
-    bottom:14px; left:10px;
-    width:270px;
-    max-height:240px;
-    padding:10px;
-    overflow:auto;
-    display:none;
-  }
-  .result-row{
-    display:flex; justify-content:space-between; align-items:flex-start; gap:6px;
-    padding:7px 8px; border-radius:6px; margin-bottom:5px;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    cursor:pointer;
-  }
-  .result-row:hover{ border-color:var(--cyan-dim); }
-  .result-row.active{ border-color:var(--cyan); background:rgba(45,212,232,.1); }
-  .result-row .rtext{ font-size:11.5px; line-height:1.5; }
-  .result-row .val{ font-family:'JetBrains Mono',monospace; color:var(--cyan); direction:ltr; font-size:11px; }
-  .result-row button{
-    background:none; border:none; color:var(--danger); cursor:pointer; font-size:14px;
-    padding:0 4px; flex:none;
-  }
-
-  #navCluster{
-    position:absolute;
-    bottom:14px; right:10px;
-    z-index:900;
-    display:flex; flex-direction:column; gap:6px;
-  }
-  .navbtn{
-    width:34px; height:34px;
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(15,21,29,.92);
-    border:1px solid var(--line);
-    border-radius:8px;
-    color:var(--muted);
-    cursor:pointer;
-  }
-  .navbtn:hover{ color:var(--cyan); border-color:var(--cyan-dim); }
-  .navbtn svg{ width:16px; height:16px; }
-
-  #crosshair-hint{
-    position:absolute; top:10px; left:50%; transform:translateX(-50%);
-    z-index:900; background:rgba(245,166,35,.14); border:1px solid var(--amber);
-    color:var(--amber); font-size:12px; padding:6px 14px; border-radius:20px;
-    display:none; white-space:nowrap;
-  }
-
-  /* ---------- STATUS BAR ---------- */
-  #statusbar{
-    display:flex;
-    align-items:center;
-    gap:18px;
-    padding:0 16px;
-    background:var(--panel);
-    border-top:1px solid var(--line);
-    font-family:'JetBrains Mono',monospace;
-    font-size:11.5px;
-    color:var(--muted);
-    direction:ltr;
-    justify-content:flex-start;
-  }
-  #statusbar b{ color:var(--cyan); font-weight:600; }
-  .status-sep{ width:1px; height:14px; background:var(--line); }
-  #syncDot{ width:7px; height:7px; border-radius:50%; background:var(--cyan); box-shadow:0 0 6px var(--cyan); display:inline-block; margin-left:6px;}
-
-  /* cesium chrome cleanup — force-hide any default widgets */
-  .cesium-viewer-bottom, .cesium-widget-credits, .cesium-viewer-toolbar,
-  .cesium-viewer-animationContainer, .cesium-viewer-timelineContainer,
-  .cesium-viewer-fullscreenContainer, .cesium-viewer-geocoderContainer,
-  .cesium-viewer-homeButtonContainer, .cesium-viewer-sceneModePickerContainer,
-  .cesium-viewer-navigationHelpButtonContainer, .cesium-navigation-help,
-  .cesium-viewer-vrContainer{ display:none !important; }
-
-  ::-webkit-scrollbar{ width:6px; height:6px; }
-  ::-webkit-scrollbar-thumb{ background:#26333f; border-radius:3px; }
-
-  /* leaflet-draw toolbar restyle to match theme (kept minimal, top-left, small) */
-  .leaflet-draw.leaflet-control{ margin-top:52px !important; }
-
-  @media (max-width:760px){
-    .brand-text{ display:none; }
-    .search-wrap{ max-width:120px; }
-    .tbtn span{ display:none; }
-    .mini-select{ max-width:110px; font-size:10px; }
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه پیشرفته GIS - استخراج و پردازش داده‌های OpenStreetMap</title>
+    
+    <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- SheetJS for XLSX generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        #sidebar {
+            width: 400px;
+            background: #ffffff;
+            padding: 25px;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        #map {
+            flex-grow: 1;
+            height: 100%;
+            z-index: 1;
+        }
+        .header-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 5px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #555;
+        }
+        input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccd1d9;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+            direction: ltr;
+            font-family: monospace;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e1e8ed;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin: 0;
+            cursor: pointer;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #34495e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background-color: #2c3e50;
+            transform: translateY(-1px);
+        }
+        .btn-excel {
+            background-color: #27ae60;
+        }
+        .btn-excel:hover {
+            background-color: #219653;
+        }
+        .btn-kml {
+            background-color: #d35400;
+        }
+        .btn-kml:hover {
+            background-color: #e67e22;
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+        }
+        #status {
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 600;
+            background: #e8f8f5;
+            border: 1px solid #1abc9c;
+            color: #16a085;
+            display: none;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
 
-<div id="app">
-
-  <!-- ===================== HEADER ===================== -->
-  <header>
-    <div class="brand">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="#2dd4e8" stroke-width="1.4"/>
-        <ellipse cx="12" cy="12" rx="9" ry="3.6" stroke="#2dd4e8" stroke-width="1" opacity=".6"/>
-        <path d="M12 3v18M3 12h18" stroke="#2dd4e8" stroke-width="1" opacity=".5"/>
-        <circle cx="12" cy="12" r="1.6" fill="#f5a623"/>
-      </svg>
-      <div class="brand-text">
-        <b>ژئوسینک</b>
-        <span>GEOSYNC · WEB GIS</span>
-      </div>
-    </div>
-
-    <div class="search-wrap">
-      <input id="searchInput" type="text" placeholder="جست‌وجوی مکان، شهر یا مختصات...">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <div id="searchResults"></div>
-    </div>
-
-    <div class="toolgroup">
-      <button class="tbtn" id="btnLayers" title="لایه‌های تحلیلی و داده سفارشی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        <span>لایه‌ها</span>
-      </button>
-      <button class="tbtn" id="btnSearchFeatures" title="جستجوی عوارض طبیعی و مصنوعی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="M20 20l-5-5"/><path d="M10 7v6M7 10h6"/></svg>
-        <span>جستجوی عوارض</span>
-      </button>
-      <button class="tbtn" id="btnMeasureDist" title="اندازه‌گیری فاصله">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21 21 3"/><path d="M7 17l2 2M11 13l2 2M15 9l2 2"/></svg>
-        <span>فاصله</span>
-      </button>
-      <button class="tbtn" id="btnMeasureArea" title="اندازه‌گیری مساحت">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l8-3 8 3-2 12-6 3-6-3-2-12Z"/></svg>
-        <span>مساحت</span>
-      </button>
-      <button class="tbtn" id="btnBuffer" title="بافر تحلیلی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>
-        <span>بافر</span>
-      </button>
-      <button class="tbtn" id="btnMarker" title="افزودن نشانگر">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
-        <span>نشانگر</span>
-      </button>
-      <button class="tbtn" id="btnClear" title="پاک‌سازی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
-        <span>پاک‌سازی</span>
-      </button>
-    </div>
-
-    <div class="header-spacer"></div>
-
-    <div class="toolgroup">
-      <button class="tbtn active" id="viewSplit">دو‌بعدی + سه‌بعدی</button>
-      <button class="tbtn" id="view2d">فقط دوبعدی</button>
-      <button class="tbtn" id="view3d">فقط سه‌بعدی</button>
-    </div>
-  </header>
-
-  <!-- ===================== MAPS ===================== -->
-  <div id="mapsRow" class="mode-split">
-    <div id="leafletContainer">
-      <div class="pane-tag">نمای ۲بعدی</div>
-      <select id="baseSelect2D" class="mini-select"></select>
-
-      <div id="layersPanel" class="float-panel">
-        <h4>لایه‌های تحلیلی برخط</h4>
-        <label class="overlay-opt"><input type="checkbox" id="ovEarthquake"> زلزله‌های ۲۴ساعت اخیر (USGS)</label>
-        <label class="overlay-opt"><input type="checkbox" id="ovRain"> رادار بارش زنده (RainViewer)</label>
-        <div class="credit-note">داده رادار: © RainViewer.com</div>
-        <label class="overlay-opt"><input type="checkbox" id="ovNews"> اخبار برخط جهانی (GDELT)</label>
-
-        <h4>داده سفارشی کاربر</h4>
-        <button class="panel-btn" id="btnUpload">بارگذاری GeoJSON / KML / Shapefile(zip)</button>
-        <input type="file" id="fileUpload" accept=".geojson,.json,.kml,.zip" style="display:none">
-      </div>
-
-      <div id="resultsPanel" class="float-panel">
-        <h4>نتایج تحلیل و جستجو</h4>
-        <div id="resultsList"></div>
-      </div>
-
-      <div id="searchPanel" class="float-panel">
-        <h4>جستجوی عوارض طبیعی و مصنوعی</h4>
-        <label>دسته‌بندی تخصصی عوارض</label>
-        <select id="treeMenu"></select>
-        <label>کلمه کلیدی یا برچسب دستی (OSM tag)</label>
-        <input type="text" id="keywordInput" placeholder="مثلا: پل، پادگان، رادار...">
-        <label>فیلتر ابعاد سازه (متر — صفر یعنی غیرفعال)</label>
-        <div class="dim-row">
-          <div><input type="number" id="lengthFilter" placeholder="طول" min="0" value="0"></div>
-          <div><input type="number" id="widthFilter" placeholder="عرض" min="0" value="0"></div>
-          <div><input type="number" id="heightFilter" placeholder="ارتفاع" min="0" value="0"></div>
-        </div>
-        <label>حالت ترکیب فیلترها</label>
-        <select id="filterMode">
-          <option value="or">OR — کافیست یک شرط برقرار باشد</option>
-          <option value="and">AND — همه شرط‌ها باید برقرار باشند</option>
-        </select>
-        <div class="hint-text">۱) با ابزار ترسیم (گوشه بالا-چپ نقشه دوبعدی) یک محدوده مستطیلی یا چندضلعی رسم کنید. ۲) دسته یا کلمه کلیدی را تعیین کنید. ۳) دکمه جستجو را بزنید.</div>
-        <button class="panel-btn primary" id="btnRunSearch">🔍 اجرای جستجو در محدوده رسم‌شده</button>
-        <button class="panel-btn" id="btnExportExcel" style="display:none">📊 دانلود خروجی اکسل</button>
-        <button class="panel-btn danger" id="btnClearSearch">پاک‌سازی نتایج جستجو</button>
-      </div>
-    </div>
-
-    <div id="cesiumContainer">
-      <div class="pane-tag">نمای ۳بعدی</div>
-      <select id="baseSelect3D" class="mini-select"></select>
-    </div>
-
-    <div id="crosshair-hint">حالت ترسیم فعال است</div>
-
-    <div id="navCluster">
-      <div class="navbtn" id="navHome" title="بازگشت به دید کلی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>
-      </div>
-      <div class="navbtn" id="navPlus" title="بزرگ‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
-      <div class="navbtn" id="navMinus" title="کوچک‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></div>
-      <div class="navbtn" id="navNorth" title="شمال / بازنشانی چرخش"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6M12 16v6M4 12l8-3 8 3-8 3-8-3Z"/></svg></div>
-    </div>
-  </div>
-
-  <!-- ===================== STATUS BAR ===================== -->
-  <div id="statusbar">
-    <span>LAT <b id="stLat">--</b></span>
-    <span>LON <b id="stLon">--</b></span>
-    <div class="status-sep"></div>
-    <span>ZOOM <b id="stZoom">--</b></span>
-    <div class="status-sep"></div>
-    <span>SCALE <b id="stScale">--</b></span>
-    <div class="status-sep"></div>
-    <span>MODE <b id="stMode">SPLIT</b></span>
-    <div class="header-spacer"></div>
-    <span><span id="syncDot"></span>SYNC ACTIVE — 2D ⇄ 3D</span>
-  </div>
-
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-<script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
-<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-<script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
-<script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
-<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-<script>
-(function(){
-
-/* =========================================================
-   1) TILE SOURCES (100% free, no API key / no Cesium ion)
-   ========================================================= */
-const SOURCES = {
-  osm:  { label:'خیابانی (OSM)', color:'#4b8f4b', leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© OpenStreetMap contributors'}},
-          cesium:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
-  sat:  { label:'تصویر ماهواره‌ای (Esri)', color:'#3a4a5c', leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19, attribution:'© Esri, Maxar, Earthstar Geographics'}},
-          cesium:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'} },
-  topo: { label:'توپوگرافی (OpenTopoMap)', color:'#b08c4b', leaflet:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)'}},
-          cesium:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
-  dark: { label:'تم تاریک (CartoDB Dark)', color:'#1b2430', leaflet:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
-          cesium:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', subdomains:['a','b','c','d']} },
-  light:{ label:'تم روشن (CartoDB Positron)', color:'#dfe6ec', leaflet:{url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
-          cesium:{url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', subdomains:['a','b','c','d']} },
-  hot:  { label:'نقشه بشردوستانه (HOT)', color:'#a23a3a', leaflet:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© HOT OSM'}},
-          cesium:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', subdomains:['a','b','c']} }
-};
-const SOURCE_KEYS = Object.keys(SOURCES);
-
-function fillBaseSelect(selectEl){
-  SOURCE_KEYS.forEach(key=>{
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = SOURCES[key].label;
-    selectEl.appendChild(opt);
-  });
-}
-fillBaseSelect(document.getElementById('baseSelect2D'));
-fillBaseSelect(document.getElementById('baseSelect3D'));
-
-/* =========================================================
-   2) LEAFLET (2D)
-   ========================================================= */
-const leafletMap = L.map('leafletContainer', { zoomControl:false, attributionControl:true, preferCanvas:true })
-  .setView([35.6892, 51.3890], 6); // تهران - نقطه شروع
-
-let leafletTileLayer = L.tileLayer(SOURCES.osm.leaflet.url, SOURCES.osm.leaflet.opts).addTo(leafletMap);
-function setLeafletSource(key){
-  leafletMap.removeLayer(leafletTileLayer);
-  leafletTileLayer = L.tileLayer(SOURCES[key].leaflet.url, SOURCES[key].leaflet.opts).addTo(leafletMap);
-}
-// اطمینان از رندر صحیح کاشی‌ها حتی اگر گرید CSS با تاخیر یک فریم ابعاد را نهایی کند
-requestAnimationFrame(()=> leafletMap.invalidateSize());
-window.addEventListener('load', ()=> setTimeout(()=> leafletMap.invalidateSize(), 200));
-
-/* =========================================================
-   3) CESIUM (3D) — no Ion token required
-   ========================================================= */
-Cesium.Ion.defaultAccessToken = undefined;
-
-const cesiumViewer = new Cesium.Viewer('cesiumContainer', {
-  imageryProvider: false,
-  baseLayerPicker: false,
-  geocoder: false,
-  homeButton: false,
-  sceneModePicker: false,
-  navigationHelpButton: false,
-  animation: false,
-  timeline: false,
-  fullscreenButton: false,
-  infoBox: false,
-  selectionIndicator: false,
-  vrButton: false,
-  terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-  contextOptions: { webgl: { alpha: false } }
-});
-cesiumViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a1520');
-cesiumViewer.scene.skyAtmosphere.show = true;
-cesiumViewer.scene.fog.enabled = true;
-if (cesiumViewer._cesiumWidget && cesiumViewer._cesiumWidget._creditContainer){
-  cesiumViewer._cesiumWidget._creditContainer.style.display = 'none';
-}
-
-let cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
-  new Cesium.UrlTemplateImageryProvider({ url: SOURCES.osm.cesium.url, subdomains: SOURCES.osm.cesium.subdomains, credit:'OSM' })
+    <div id="sidebar">
+        <div class="header-title">تنظیمات استخراج (Overpass API)</div>
+        
+        <div class="form-group">
+            <label>کوئری Overpass (فرمت JSON):</label>
+            <textarea id="overpassQuery">[out:json][timeout:25];
+area["name"="Tehran"]->.searchArea;
+(
+  node["building"](area.searchArea);
+  way["building"](area.searchArea);
+  relation["building"](area.searchArea);
 );
-function setCesiumSource(key){
-  cesiumViewer.imageryLayers.remove(cesiumImageryLayer, true);
-  cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
-    new Cesium.UrlTemplateImageryProvider({ url: SOURCES[key].cesium.url, subdomains: SOURCES[key].cesium.subdomains || undefined })
-  );
-}
-
-cesiumViewer.camera.flyTo({
-  destination: Cesium.Cartesian3.fromDegrees(51.3890, 35.6892, 1800000),
-  duration: 0
-});
-
-/* independent base-layer selectors per pane */
-document.getElementById('baseSelect2D').value = 'osm';
-document.getElementById('baseSelect3D').value = 'osm';
-document.getElementById('baseSelect2D').addEventListener('change', e=> setLeafletSource(e.target.value));
-document.getElementById('baseSelect3D').addEventListener('change', e=> setCesiumSource(e.target.value));
-
-/* =========================================================
-   4) SYNC ENGINE — 2D ⇄ 3D camera
-   ========================================================= */
-let syncingFromLeaflet = false;
-let syncingFromCesium = false;
-
-function heightFromZoom(zoom){ return 591657550.5 / Math.pow(2, zoom - 1); }
-function zoomFromHeight(h){ return Math.max(2, Math.min(19, Math.log2(591657550.5 / h) + 1)); }
-
-leafletMap.on('moveend', function(){
-  if (syncingFromCesium) return;
-  syncingFromLeaflet = true;
-  const c = leafletMap.getCenter();
-  const h = heightFromZoom(leafletMap.getZoom());
-  cesiumViewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(c.lng, c.lat, h),
-    duration: 0.4,
-    complete: ()=>{ syncingFromLeaflet = false; }
-  });
-  setTimeout(()=>{ syncingFromLeaflet = false; }, 500);
-  updateStatus(c.lat, c.lng, leafletMap.getZoom());
-});
-
-cesiumViewer.camera.moveEnd.addEventListener(function(){
-  if (syncingFromLeaflet) return;
-  const carto = cesiumViewer.camera.positionCartographic;
-  const lat = Cesium.Math.toDegrees(carto.latitude);
-  const lon = Cesium.Math.toDegrees(carto.longitude);
-  const zoom = zoomFromHeight(carto.height);
-  syncingFromCesium = true;
-  leafletMap.setView([lat, lon], Math.round(zoom), { animate:false });
-  syncingFromCesium = false;
-  updateStatus(lat, lon, Math.round(zoom));
-});
-
-function updateStatus(lat, lon, zoom){
-  document.getElementById('stLat').textContent = lat.toFixed(5);
-  document.getElementById('stLon').textContent = lon.toFixed(5);
-  document.getElementById('stZoom').textContent = zoom;
-  const scale = Math.round(591657550.5 / Math.pow(2, zoom-1) / 0.28);
-  document.getElementById('stScale').textContent = '1:' + scale.toLocaleString('en-US');
-}
-updateStatus(35.6892, 51.3890, 6);
-
-/* =========================================================
-   5) FLOATING PANEL TOGGLES (layers / search) — mutually exclusive
-   ========================================================= */
-const layersPanel = document.getElementById('layersPanel');
-const searchPanel = document.getElementById('searchPanel');
-function closeAllPanels(){ layersPanel.style.display='none'; searchPanel.style.display='none'; }
-document.getElementById('btnLayers').addEventListener('click', ()=>{
-  const willOpen = layersPanel.style.display !== 'block';
-  closeAllPanels();
-  layersPanel.style.display = willOpen ? 'block' : 'none';
-});
-document.getElementById('btnSearchFeatures').addEventListener('click', ()=>{
-  const willOpen = searchPanel.style.display !== 'block';
-  closeAllPanels();
-  searchPanel.style.display = willOpen ? 'block' : 'none';
-});
-
-/* =========================================================
-   6) SEARCH BOX — Nominatim (free OSM geocoding)
-   ========================================================= */
-const searchInput = document.getElementById('searchInput');
-const searchResultsBox = document.getElementById('searchResults');
-let searchTimer = null;
-
-searchInput.addEventListener('input', ()=>{
-  clearTimeout(searchTimer);
-  const q = searchInput.value.trim();
-  if (q.length < 3){ searchResultsBox.style.display='none'; return; }
-  searchTimer = setTimeout(async ()=>{
-    try{
-      const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&q=' + encodeURIComponent(q));
-      const data = await res.json();
-      searchResultsBox.innerHTML = '';
-      if (!data.length){ searchResultsBox.style.display='none'; return; }
-      data.forEach(item=>{
-        const div = document.createElement('div');
-        div.textContent = item.display_name;
-        div.addEventListener('click', ()=>{
-          const lat = parseFloat(item.lat), lon = parseFloat(item.lon);
-          leafletMap.setView([lat, lon], 13);
-          searchResultsBox.style.display = 'none';
-          searchInput.value = item.display_name;
-          dropMarker(lat, lon, item.display_name.split(',')[0]);
-        });
-        searchResultsBox.appendChild(div);
-      });
-      searchResultsBox.style.display = 'block';
-    }catch(e){ console.error(e); }
-  }, 450);
-});
-document.addEventListener('click', (e)=>{
-  if (!searchResultsBox.contains(e.target) && e.target !== searchInput) searchResultsBox.style.display='none';
-});
-
-/* =========================================================
-   7) MARKERS / DRAWING / MEASUREMENT / BUFFER (synced 2D + 3D)
-   ========================================================= */
-let mode = null; // null | 'marker' | 'distance' | 'area'
-let bufferMode = false;
-let drawPoints = [];
-let tempLeafletLayer = null;
-let leafletMarkers = [];
-let cesiumEntities = [];
-const resultsPanel = document.getElementById('resultsPanel');
-const resultsList = document.getElementById('resultsList');
-const hint = document.getElementById('crosshair-hint');
-let resultCounter = 0;
-
-function setMode(newMode){
-  mode = (mode === newMode) ? null : newMode;
-  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
-  bufferMode = false;
-  document.getElementById('btnBuffer').classList.remove('active');
-  drawPoints = [];
-  if (tempLeafletLayer){ leafletMap.removeLayer(tempLeafletLayer); tempLeafletLayer = null; }
-  hint.style.display = 'none';
-  if (mode === 'distance'){ document.getElementById('btnMeasureDist').classList.add('active'); hint.style.display='block'; hint.textContent='حالت اندازه‌گیری فاصله — روی نقشه دوبعدی کلیک کنید، برای پایان دو‌بار کلیک کنید'; }
-  if (mode === 'area'){ document.getElementById('btnMeasureArea').classList.add('active'); hint.style.display='block'; hint.textContent='حالت اندازه‌گیری مساحت — حداقل ۳ نقطه، برای پایان دو‌بار کلیک کنید'; }
-  if (mode === 'marker'){ document.getElementById('btnMarker').classList.add('active'); hint.style.display='block'; hint.textContent='حالت نشانگر — روی نقشه دوبعدی کلیک کنید'; }
-}
-document.getElementById('btnMeasureDist').addEventListener('click', ()=>setMode('distance'));
-document.getElementById('btnMeasureArea').addEventListener('click', ()=>setMode('area'));
-document.getElementById('btnMarker').addEventListener('click', ()=>setMode('marker'));
-
-document.getElementById('btnBuffer').addEventListener('click', ()=>{
-  bufferMode = !bufferMode;
-  mode = null;
-  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
-  document.getElementById('btnBuffer').classList.toggle('active', bufferMode);
-  hint.style.display = bufferMode ? 'block' : 'none';
-  hint.textContent = 'حالت بافر تحلیلی — روی نقشه دوبعدی کلیک کنید و شعاع را به کیلومتر وارد کنید';
-});
-
-function dropMarker(lat, lon, label){
-  const m = L.marker([lat, lon]).addTo(leafletMap).bindTooltip(label || 'نشانگر', {permanent:false});
-  leafletMarkers.push(m);
-  const ent = cesiumViewer.entities.add({
-    position: Cesium.Cartesian3.fromDegrees(lon, lat),
-    point: { pixelSize: 10, color: Cesium.Color.fromCssColorString('#f5a623'), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-    label: { text: label || '', font: '12px sans-serif', pixelOffset: new Cesium.Cartesian2(0,-18), fillColor: Cesium.Color.WHITE }
-  });
-  cesiumEntities.push(ent);
-}
-
-function addResult(label, value, onClick){
-  resultsPanel.style.display = 'block';
-  resultCounter++;
-  const id = 'res_' + resultCounter;
-  const row = document.createElement('div');
-  row.className = 'result-row';
-  row.id = id;
-  row.innerHTML = '<span class="rtext">'+label+'<br><span class="val">'+value+'</span></span><button data-id="'+id+'">✕</button>';
-  if (onClick){ row.addEventListener('click', (ev)=>{ if(ev.target.tagName==='BUTTON') return; onClick(); }); }
-  resultsList.appendChild(row);
-  row.querySelector('button').addEventListener('click', ()=>row.remove());
-  return row;
-}
-
-function drawBuffer(lat, lng, radiusKm){
-  const pt = turf.point([lng, lat]);
-  const buffered = turf.buffer(pt, radiusKm, {units:'kilometers'});
-  const ring = buffered.geometry.coordinates[0];
-  const latlngs = ring.map(c=>[c[1], c[0]]);
-  const layer = L.polygon(latlngs, {color:'#2dd4e8', weight:2, fillColor:'#2dd4e8', fillOpacity:.15}).addTo(leafletMap);
-  leafletMarkers.push(layer);
-  const pos = []; ring.forEach(c=>pos.push(c[0], c[1]));
-  const ent = cesiumViewer.entities.add({
-    polygon:{ hierarchy: Cesium.Cartesian3.fromDegreesArray(pos), material: Cesium.Color.fromCssColorString('#2dd4e8').withAlpha(.2), outline:true, outlineColor: Cesium.Color.fromCssColorString('#2dd4e8') }
-  });
-  cesiumEntities.push(ent);
-  const areaKm2 = (turf.area(buffered)/1e6).toFixed(2);
-  addResult('بافر '+radiusKm+' کیلومتری', areaKm2 + ' km²');
-}
-
-leafletMap.on('click', function(e){
-  if (bufferMode){
-    const radiusKm = parseFloat(prompt('شعاع بافر تحلیلی را به کیلومتر وارد کنید:', '5'));
-    if (!isNaN(radiusKm) && radiusKm > 0){ drawBuffer(e.latlng.lat, e.latlng.lng, radiusKm); }
-    return;
-  }
-  if (!mode) return;
-  const {lat, lng} = e.latlng;
-
-  if (mode === 'marker'){
-    dropMarker(lat, lng, 'نقطه دلخواه');
-    setMode('marker');
-    return;
-  }
-
-  drawPoints.push([lat, lng]);
-  if (tempLeafletLayer) leafletMap.removeLayer(tempLeafletLayer);
-
-  if (mode === 'distance'){
-    tempLeafletLayer = L.polyline(drawPoints, {color:'#2dd4e8', weight:3}).addTo(leafletMap);
-  } else if (mode === 'area'){
-    tempLeafletLayer = L.polygon(drawPoints, {color:'#f5a623', weight:2, fillOpacity:.15}).addTo(leafletMap);
-  }
-});
-
-leafletMap.on('dblclick', function(e){
-  if (!mode || drawPoints.length < 2) return;
-  L.DomEvent.stop(e);
-
-  if (mode === 'distance'){
-    let meters = 0;
-    for (let i=1;i<drawPoints.length;i++){
-      meters += leafletMap.distance(drawPoints[i-1], drawPoints[i]);
-    }
-    const km = (meters/1000).toFixed(2);
-    addResult('فاصله خط', km + ' km');
-    syncShapeToCesium(drawPoints, 'polyline');
-  } else if (mode === 'area' && drawPoints.length >= 3){
-    const coordsGeo = drawPoints.map(p=>[p[1],p[0]]);
-    coordsGeo.push(coordsGeo[0]);
-    const poly = turf.polygon([coordsGeo]);
-    const areaM2 = turf.area(poly);
-    const areaKm2 = (areaM2/1e6).toFixed(3);
-    addResult('مساحت چندضلعی', areaKm2 + ' km²');
-    syncShapeToCesium(drawPoints, 'polygon');
-  }
-
-  drawPoints = [];
-  hint.style.display = 'none';
-  mode = null;
-  ['btnMeasureDist','btnMeasureArea'].forEach(id=>document.getElementById(id).classList.remove('active'));
-});
-
-function syncShapeToCesium(points, kind){
-  const positions = [];
-  points.forEach(p=> positions.push(p[1], p[0]));
-  if (kind === 'polyline'){
-    const ent = cesiumViewer.entities.add({
-      polyline: { positions: Cesium.Cartesian3.fromDegreesArray(positions), width: 4, material: Cesium.Color.fromCssColorString('#2dd4e8'), clampToGround: true }
-    });
-    cesiumEntities.push(ent);
-  } else {
-    const ent = cesiumViewer.entities.add({
-      polygon: { hierarchy: Cesium.Cartesian3.fromDegreesArray(positions), material: Cesium.Color.fromCssColorString('#f5a623').withAlpha(.3), outline: true, outlineColor: Cesium.Color.fromCssColorString('#f5a623') }
-    });
-    cesiumEntities.push(ent);
-  }
-}
-
-/* =========================================================
-   7b) OVERLAY: زلزله‌های اخیر (USGS — رایگان، بدون کلید)
-   ========================================================= */
-function sanitizeHtml(html){ return String(html || '').replace(/<script[\s\S]*?<\/script>/gi, ''); }
-
-let earthquakeLeafletGroup = L.layerGroup();
-let earthquakeCesiumEntities = [];
-async function toggleEarthquakes(on){
-  if (on){
-    try{
-      const res = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
-      const data = await res.json();
-      data.features.forEach(f=>{
-        const [lon, lat] = f.geometry.coordinates;
-        const mag = f.properties.mag || 0;
-        const color = mag >= 5 ? '#ef5b5b' : mag >= 4 ? '#f5a623' : '#2dd4e8';
-        const m = L.circleMarker([lat, lon], {radius: 4 + mag*2, color, fillColor: color, fillOpacity:.5, weight:1})
-          .bindPopup('<b>M ' + mag.toFixed(1) + '</b> — ' + f.properties.place + '<br><span class="mono">' + new Date(f.properties.time).toLocaleString('fa-IR') + '</span>');
-        earthquakeLeafletGroup.addLayer(m);
-        const ent = cesiumViewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(lon, lat),
-          point: { pixelSize: 6 + mag*2, color: Cesium.Color.fromCssColorString(color).withAlpha(.8), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-          description: 'M ' + mag.toFixed(1) + ' — ' + f.properties.place
-        });
-        earthquakeCesiumEntities.push(ent);
-      });
-      earthquakeLeafletGroup.addTo(leafletMap);
-    }catch(err){ console.error(err); alert('خطا در دریافت داده زلزله از USGS — ممکن است این سرویس در شبکه شما در دسترس نباشد.'); document.getElementById('ovEarthquake').checked=false; }
-  } else {
-    leafletMap.removeLayer(earthquakeLeafletGroup);
-    earthquakeLeafletGroup.clearLayers();
-    earthquakeCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-    earthquakeCesiumEntities = [];
-  }
-}
-document.getElementById('ovEarthquake').addEventListener('change', e=>toggleEarthquakes(e.target.checked));
-
-/* =========================================================
-   7c) OVERLAY: رادار بارش زنده (RainViewer — رایگان، بدون کلید)
-   ========================================================= */
-let rainLeafletLayer = null;
-let rainCesiumLayer = null;
-async function toggleRain(on){
-  if (on){
-    try{
-      const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-      const data = await res.json();
-      const frames = data.radar && data.radar.past;
-      if (!frames || !frames.length){ return; }
-      const path = frames[frames.length - 1].path;
-      const tileUrl = data.host + path + '/256/{z}/{x}/{y}/2/1_1.png';
-      rainLeafletLayer = L.tileLayer(tileUrl, {opacity:.6, zIndex:500}).addTo(leafletMap);
-      rainCesiumLayer = cesiumViewer.imageryLayers.addImageryProvider(
-        new Cesium.UrlTemplateImageryProvider({ url: tileUrl })
-      );
-      rainCesiumLayer.alpha = .6;
-    }catch(err){ console.error(err); alert('خطا در دریافت رادار بارش از RainViewer'); document.getElementById('ovRain').checked=false; }
-  } else {
-    if (rainLeafletLayer){ leafletMap.removeLayer(rainLeafletLayer); rainLeafletLayer = null; }
-    if (rainCesiumLayer){ cesiumViewer.imageryLayers.remove(rainCesiumLayer, true); rainCesiumLayer = null; }
-  }
-}
-document.getElementById('ovRain').addEventListener('change', e=>toggleRain(e.target.checked));
-
-/* =========================================================
-   7d) OVERLAY: اخبار برخط جهانی (GDELT GEO 2.0 — رایگان، بدون کلید)
-   ========================================================= */
-let newsLeafletGroup = L.layerGroup();
-let newsCesiumEntities = [];
-async function toggleNews(on){
-  if (on){
-    try{
-      const url = 'https://api.gdeltproject.org/api/v2/geo/geo?query=news&mode=PointData&format=GeoJSON&timespan=1d&maxpoints=60';
-      const res = await fetch(url);
-      const data = await res.json();
-      (data.features || []).forEach(f=>{
-        if (!f.geometry || !f.geometry.coordinates) return;
-        const [lon, lat] = f.geometry.coordinates;
-        const name = (f.properties && f.properties.name) || 'خبر';
-        const html = sanitizeHtml(f.properties && f.properties.html);
-        const icon = L.divIcon({className:'news-icon', html:'<div style="width:12px;height:12px;border-radius:50%;background:#f5a623;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5)"></div>', iconSize:[12,12]});
-        const m = L.marker([lat, lon], {icon}).bindPopup('<b>' + name + '</b><div style="max-height:150px;overflow:auto;font-size:11px;margin-top:4px">' + html + '</div>');
-        newsLeafletGroup.addLayer(m);
-        const ent = cesiumViewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(lon, lat),
-          point: { pixelSize: 8, color: Cesium.Color.fromCssColorString('#f5a623'), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-          description: name
-        });
-        newsCesiumEntities.push(ent);
-      });
-      newsLeafletGroup.addTo(leafletMap);
-    }catch(err){ console.error(err); alert('خطا در دریافت اخبار برخط از GDELT — ممکن است این سرویس در شبکه شما در دسترس نباشد.'); document.getElementById('ovNews').checked=false; }
-  } else {
-    leafletMap.removeLayer(newsLeafletGroup);
-    newsLeafletGroup.clearLayers();
-    newsCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-    newsCesiumEntities = [];
-  }
-}
-document.getElementById('ovNews').addEventListener('change', e=>toggleNews(e.target.checked));
-
-/* =========================================================
-   7e) داده سفارشی کاربر: بارگذاری GeoJSON / KML / Shapefile (zip)
-   ========================================================= */
-let uploadedLeafletLayer = null;
-let uploadedCesiumEntities = [];
-
-document.getElementById('btnUpload').addEventListener('click', ()=> document.getElementById('fileUpload').click());
-document.getElementById('fileUpload').addEventListener('change', async (e)=>{
-  const file = e.target.files[0];
-  if (!file) return;
-  try{
-    let geojson;
-    const lname = file.name.toLowerCase();
-    if (lname.endsWith('.zip')){
-      const buf = await file.arrayBuffer();
-      geojson = await shp(buf);
-    } else if (lname.endsWith('.kml')){
-      const text = await file.text();
-      const xml = new DOMParser().parseFromString(text, 'text/xml');
-      geojson = toGeoJSON.kml(xml);
-    } else {
-      const text = await file.text();
-      geojson = JSON.parse(text);
-    }
-    addUploadedGeoJSON(geojson);
-  }catch(err){
-    console.error(err);
-    alert('خطا در خواندن فایل. لطفا از فرمت معتبر GeoJSON (.json/.geojson)، KML (.kml) یا Shapefile فشرده (.zip) استفاده کنید.');
-  }
-  e.target.value = '';
-});
-
-function addUploadedGeoJSON(geojson){
-  if (uploadedLeafletLayer){ leafletMap.removeLayer(uploadedLeafletLayer); }
-  uploadedCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-  uploadedCesiumEntities = [];
-
-  uploadedLeafletLayer = L.geoJSON(geojson, {
-    style: { color:'#2dd4e8', weight:2, fillColor:'#2dd4e8', fillOpacity:.2 },
-    pointToLayer: (f, latlng)=> L.circleMarker(latlng, {radius:6, color:'#f5a623', fillColor:'#f5a623', fillOpacity:.85, weight:1})
-  }).addTo(leafletMap);
-
-  try{ leafletMap.fitBounds(uploadedLeafletLayer.getBounds(), {maxZoom:12}); }catch(e){}
-
-  const features = geojson.type === 'FeatureCollection' ? geojson.features : [geojson];
-  features.forEach(f=>{
-    if (!f.geometry) return;
-    const g = f.geometry;
-    if (g.type === 'Point'){
-      const ent = cesiumViewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(g.coordinates[0], g.coordinates[1]), point:{pixelSize:8, color: Cesium.Color.fromCssColorString('#f5a623')} });
-      uploadedCesiumEntities.push(ent);
-    } else if (g.type === 'LineString'){
-      const pos = []; g.coordinates.forEach(c=>pos.push(c[0], c[1]));
-      const ent = cesiumViewer.entities.add({ polyline:{ positions: Cesium.Cartesian3.fromDegreesArray(pos), width:3, material: Cesium.Color.fromCssColorString('#2dd4e8'), clampToGround:true } });
-      uploadedCesiumEntities.push(ent);
-    } else if (g.type === 'Polygon'){
-      const ring = g.coordinates[0]; const pos = []; ring.forEach(c=>pos.push(c[0], c[1]));
-      const ent = cesiumViewer.entities.add({ polygon:{ hierarchy: Cesium.Cartesian3.fromDegreesArray(pos), material: Cesium.Color.fromCssColorString('#2dd4e8').withAlpha(.25), outline:true, outlineColor: Cesium.Color.fromCssColorString('#2dd4e8') } });
-      uploadedCesiumEntities.push(ent);
-    } else if (g.type === 'MultiPolygon'){
-      g.coordinates.forEach(poly=>{
-        const ring = poly[0]; const pos = []; ring.forEach(c=>pos.push(c[0], c[1]));
-        const ent = cesiumViewer.entities.add({ polygon:{ hierarchy: Cesium.Cartesian3.fromDegreesArray(pos), material: Cesium.Color.fromCssColorString('#2dd4e8').withAlpha(.25), outline:true, outlineColor: Cesium.Color.fromCssColorString('#2dd4e8') } });
-        uploadedCesiumEntities.push(ent);
-      });
-    }
-  });
-  addResult('لایه سفارشی بارگذاری‌شده', features.length + ' عنصر');
-}
-
-/* =========================================================
-   7f) جستجوی عوارض طبیعی و مصنوعی (Overpass API — رایگان، بدون کلید)
-   با الگوریتم چند-سروره fail-over مطابق اسکریپت مرجع کاربر
-   ========================================================= */
-const OSM_DICTIONARY = {
-  "خطوط برق": "power=line", "دکل مخابراتی": "man_made=tower", "تاسیسات مخابراتی": "telecom=exchange",
-  "خطوط آب": "man_made=pipeline", "خطوط نفت": "man_made=pipeline", "خطوط گاز": "man_made=pipeline",
-  "پالایشگاه": "industrial=refinery", "نیروگاه برق": "power=plant", "پست برق": "power=substation",
-  "مخزن سوخت": "man_made=storage_tank", "دکل حفاری": "man_made=drilling_rig", "سد": "waterway=dam",
-  "پادگان": "landuse=military", "پایگاه هوایی نظامی": "aeroway=aerodrome", "منطقه ممنوعه نظامی": "military=danger_zone",
-  "پناهگاه": "military=bunker", "تاسیسات دریایی نظامی": "military=naval_base", "ایستگاه رادار": "military=radar",
-  "جاده": "highway", "بندر و اسکله": "harbour=yes", "اسکله": "man_made=pier", "لنگرگاه": "mooring=yes",
-  "فرودگاه": "aeroway=aerodrome", "باند پرواز": "aeroway=runway", "تونل": "tunnel=yes", "پل": "bridge=yes",
-  "ایستگاه راه‌آهن": "railway=station", "خطوط راه‌آهن": "railway=rail", "انبار لجستیک": "building=warehouse",
-  "پمپ بنزین": "amenity=fuel", "ترمینال مسافربری": "amenity=bus_station",
-  "بیمارستان": "amenity=hospital", "درمانگاه": "amenity=clinic", "مدرسه": "amenity=school",
-  "دانشگاه": "amenity=university", "مسجد": "amenity=place_of_worship", "پارک": "leisure=park",
-  "هتل": "tourism=hotel", "رستوران": "amenity=restaurant", "بانک": "amenity=bank", "کارخانه": "landuse=industrial",
-  "رودخانه": "waterway=river", "دریاچه": "natural=water", "جنگل": "natural=wood", "کوه / قله": "natural=peak",
-  "غار": "natural=cave_entrance", "ساحل": "natural=beach", "بیابان": "natural=desert", "آبشار": "waterway=waterfall"
-};
-const FEATURE_GROUPS = {
-  "🚚 ترابری، تقاطع‌ها و بنادر": ["پل","تونل","جاده","فرودگاه","باند پرواز","خطوط راه‌آهن","ایستگاه راه‌آهن","بندر و اسکله","اسکله","لنگرگاه","ترمینال مسافربری"],
-  "⚡ انرژی و تاسیسات حیاتی": ["خطوط برق","نیروگاه برق","پست برق","پالایشگاه","مخزن سوخت","دکل حفاری","دکل مخابراتی","تاسیسات مخابراتی","خطوط آب","خطوط نفت","خطوط گاز","سد","پمپ بنزین"],
-  "🪖 نظامی و امنیتی": ["پادگان","پایگاه هوایی نظامی","منطقه ممنوعه نظامی","پناهگاه","تاسیسات دریایی نظامی","ایستگاه رادار"],
-  "🌍 عوارض طبیعی": ["رودخانه","دریاچه","جنگل","کوه / قله","غار","ساحل","بیابان","آبشار"],
-  "🏙 خدمات شهری": ["بیمارستان","درمانگاه","مدرسه","دانشگاه","مسجد","پارک","هتل","رستوران","بانک","کارخانه","انبار لجستیک"]
-};
-function fillTreeMenu(){
-  const sel = document.getElementById('treeMenu');
-  const blank = document.createElement('option');
-  blank.value=''; blank.textContent='-- انتخاب دسته‌بندی تخصصی عوارض --';
-  sel.appendChild(blank);
-  Object.keys(FEATURE_GROUPS).forEach(groupName=>{
-    const og = document.createElement('optgroup');
-    og.label = groupName;
-    FEATURE_GROUPS[groupName].forEach(item=>{
-      const opt = document.createElement('option');
-      opt.value = item; opt.textContent = item;
-      og.appendChild(opt);
-    });
-    sel.appendChild(og);
-  });
-}
-fillTreeMenu();
-document.getElementById('treeMenu').addEventListener('change', function(){
-  if (this.value){ document.getElementById('keywordInput').value = this.value; }
-});
-
-const OVERPASS_SERVERS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.osm.ch/api/interpreter"
-];
-
-function extractNumber(value){
-  if (value === null || value === undefined) return null;
-  const m = String(value).match(/[-+]?\d*\.?\d+/);
-  return m ? parseFloat(m[0]) : null;
-}
-function ddToDms(dd, isLat){
-  let direction = isLat ? 'N' : 'E';
-  if (dd < 0) direction = isLat ? 'S' : 'W';
-  dd = Math.abs(dd);
-  const degrees = Math.floor(dd);
-  const minutesFloat = (dd - degrees) * 60;
-  const minutes = Math.floor(minutesFloat);
-  const seconds = Math.round((minutesFloat - minutes) * 60 * 100) / 100;
-  return degrees + "°" + minutes + "'" + seconds + '"' + direction;
-}
-
-// ابزار ترسیم محدوده (Leaflet.Draw) — همیشه فعال، گوشه بالا-چپ نقشه دوبعدی
-const searchDrawnItems = new L.FeatureGroup();
-leafletMap.addLayer(searchDrawnItems);
-const searchDrawControl = new L.Control.Draw({
-  position: 'topleft',
-  edit: { featureGroup: searchDrawnItems },
-  draw: { polygon:true, rectangle:true, circle:false, polyline:false, marker:false, circlemarker:false }
-});
-leafletMap.addControl(searchDrawControl);
-let searchBBox = null;
-leafletMap.on(L.Draw.Event.CREATED, function(e){
-  searchDrawnItems.clearLayers();
-  const layer = e.layer;
-  searchDrawnItems.addLayer(layer);
-  const b = layer.getBounds();
-  searchBBox = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
-});
-
-let featureLeafletGroup = L.layerGroup().addTo(leafletMap);
-let featureCesiumEntities = [];
-let featureResultsData = []; // برای خروجی اکسل
-
-async function runFeatureSearch(){
-  if (!searchBBox){ alert('❌ ابتدا با ابزار ترسیم (گوشه بالا-چپ نقشه دوبعدی)، یک محدوده مستطیلی یا چندضلعی رسم کنید.'); return; }
-  const keyword = document.getElementById('keywordInput').value.trim();
-  if (!keyword){ alert('❌ لطفا یک دسته‌بندی انتخاب کنید یا کلمه کلیدی وارد نمایید.'); return; }
-
-  const lengthFilter = parseFloat(document.getElementById('lengthFilter').value) || 0;
-  const widthFilter = parseFloat(document.getElementById('widthFilter').value) || 0;
-  const heightFilter = parseFloat(document.getElementById('heightFilter').value) || 0;
-  const filterMode = document.getElementById('filterMode').value;
-
-  const osmTag = OSM_DICTIONARY[keyword] || ('name~"' + keyword.replace(/"/g,'') + '",i');
-  const b = searchBBox;
-  const query = '[out:json][timeout:25];(nwr[' + osmTag + '](' + b.south + ',' + b.west + ',' + b.north + ',' + b.east + '););out center;';
-
-  const runBtn = document.getElementById('btnRunSearch');
-  runBtn.textContent = '⏳ در حال اتصال به سرورهای Overpass...';
-  runBtn.disabled = true;
-
-  let data = null;
-  let lastError = '';
-  for (const server of OVERPASS_SERVERS){
-    try{
-      const res = await fetch(server, {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: 'data=' + encodeURIComponent(query)
-      });
-      if (res.ok){ data = await res.json(); break; }
-      lastError = server + ' -> HTTP ' + res.status;
-    }catch(err){ lastError = server + ' -> ' + err.message; console.warn(lastError); }
-  }
-
-  runBtn.textContent = '🔍 اجرای جستجو در محدوده رسم‌شده';
-  runBtn.disabled = false;
-
-  if (!data){
-    alert('🛑 اتصال به هیچ‌یک از سرورهای Overpass برقرار نشد (ممکن است در شبکه شما مسدود باشند). جزئیات: ' + lastError);
-    return;
-  }
-
-  processFeatureResults(data.elements || [], b, lengthFilter, widthFilter, heightFilter, filterMode);
-}
-
-function processFeatureResults(elements, bbox, lengthFilter, widthFilter, heightFilter, filterMode){
-  featureLeafletGroup.clearLayers();
-  featureCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-  featureCesiumEntities = [];
-  featureResultsData = [];
-
-  let counter = 0;
-  elements.forEach(el=>{
-    const tags = el.tags || {};
-    let lat, lon;
-    if (el.center){ lat = el.center.lat; lon = el.center.lon; }
-    else if (el.lat !== undefined && el.lon !== undefined){ lat = el.lat; lon = el.lon; }
-    else { return; }
-
-    if (!(bbox.south <= lat && lat <= bbox.north && bbox.west <= lon && lon <= bbox.east)) return;
-
-    const lengthVal = extractNumber(tags.length);
-    const widthVal = extractNumber(tags.width);
-    const heightVal = extractNumber(tags.height || tags['building:levels']);
-
-    const checks = [];
-    if (lengthFilter > 0) checks.push(lengthVal !== null && lengthVal <= lengthFilter);
-    if (widthFilter > 0) checks.push(widthVal !== null && widthVal <= widthFilter);
-    if (heightFilter > 0) checks.push(heightVal !== null && heightVal <= heightFilter);
-    if (checks.length){
-      const passed = filterMode === 'and' ? checks.every(Boolean) : checks.some(Boolean);
-      if (!passed) return;
-    }
-
-    counter++;
-    const nameFa = tags['name:fa'] || tags.name || tags.bridge || tags.highway || ('عارضه ' + counter);
-    const lengthDisp = tags.length || 'نامشخص';
-    const widthDisp = tags.width || 'نامشخص';
-    const heightDisp = tags.height || tags['building:levels'] || 'نامشخص';
-    const dimStr = 'طول (' + lengthDisp + ') | عرض (' + widthDisp + ') | ارتفاع (' + heightDisp + ')';
-    const ddStr = lat.toFixed(6) + ', ' + lon.toFixed(6);
-    const dmsStr = ddToDms(lat, true) + ', ' + ddToDms(lon, false);
-
-    featureResultsData.push({ 'ردیف': counter, 'نام یا طبقه عارضه': nameFa, 'پارامترهای سازه': dimStr, 'مختصات اعشاری DD': ddStr, 'مختصات درجه دقیقه ثانیه DMS': dmsStr });
-
-    const marker = L.circleMarker([lat, lon], {radius:7, color:'#fff', weight:2, fillColor:'#2563eb', fillOpacity:.9})
-      .bindPopup('<b>' + nameFa + '</b><br>' + dimStr + '<br><span class="mono">' + ddStr + '</span>');
-    featureLeafletGroup.addLayer(marker);
-
-    const ent = cesiumViewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(lon, lat),
-      point: { pixelSize: 9, color: Cesium.Color.fromCssColorString('#2563eb'), outlineColor: Cesium.Color.WHITE, outlineWidth: 2 },
-      description: nameFa + ' — ' + dimStr
-    });
-    featureCesiumEntities.push(ent);
-
-    addResult(nameFa, ddStr, ()=>{
-      leafletMap.panTo([lat, lon]); marker.openPopup();
-      cesiumViewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon, lat, 5000), duration: 1 });
-    });
-  });
-
-  if (counter === 0){
-    alert('هیچ عارضه‌ای در این محدوده با فیلترهای انتخابی یافت نشد. کلمه کلیدی، محدوده یا فیلتر ابعاد را تغییر دهید.');
-  } else {
-    document.getElementById('btnExportExcel').style.display = 'block';
-  }
-}
-document.getElementById('btnRunSearch').addEventListener('click', runFeatureSearch);
-
-document.getElementById('btnExportExcel').addEventListener('click', ()=>{
-  if (!featureResultsData.length) return;
-  const ws = XLSX.utils.json_to_sheet(featureResultsData);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'گزارش عوارض');
-  XLSX.writeFile(wb, 'GeoSync_Feature_Report.xlsx');
-});
-
-document.getElementById('btnClearSearch').addEventListener('click', ()=>{
-  featureLeafletGroup.clearLayers();
-  featureCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-  featureCesiumEntities = [];
-  featureResultsData = [];
-  searchDrawnItems.clearLayers();
-  searchBBox = null;
-  document.getElementById('btnExportExcel').style.display = 'none';
-});
-
-/* =========================================================
-   8) CLEAR (پاک‌سازی ترسیمات دستی / نشانگر / اندازه‌گیری / بافر / داده سفارشی)
-   ========================================================= */
-document.getElementById('btnClear').addEventListener('click', ()=>{
-  leafletMarkers.forEach(m=>leafletMap.removeLayer(m));
-  leafletMarkers = [];
-  if (tempLeafletLayer){ leafletMap.removeLayer(tempLeafletLayer); tempLeafletLayer = null; }
-  leafletMap.eachLayer(l=>{ if (l instanceof L.Polyline || l instanceof L.Polygon) { if (l !== leafletTileLayer) leafletMap.removeLayer(l); } });
-  cesiumEntities.forEach(e=>cesiumViewer.entities.remove(e));
-  cesiumEntities = [];
-  if (uploadedLeafletLayer){ leafletMap.removeLayer(uploadedLeafletLayer); uploadedLeafletLayer = null; }
-  uploadedCesiumEntities.forEach(e=>cesiumViewer.entities.remove(e));
-  uploadedCesiumEntities = [];
-  resultsList.innerHTML = '';
-  resultsPanel.style.display = 'none';
-  drawPoints = [];
-  mode = null;
-  bufferMode = false;
-  document.getElementById('btnBuffer').classList.remove('active');
-  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
-  hint.style.display = 'none';
-});
-
-/* =========================================================
-   9) NAVIGATION CLUSTER
-   ========================================================= */
-document.getElementById('navHome').addEventListener('click', ()=>{
-  leafletMap.setView([35.6892, 51.3890], 6);
-});
-document.getElementById('navPlus').addEventListener('click', ()=> leafletMap.zoomIn());
-document.getElementById('navMinus').addEventListener('click', ()=> leafletMap.zoomOut());
-document.getElementById('navNorth').addEventListener('click', ()=>{
-  cesiumViewer.camera.flyTo({
-    destination: cesiumViewer.camera.position,
-    orientation: { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
-    duration: 0.6
-  });
-});
-
-/* =========================================================
-   10) VIEW MODE (split / 2D only / 3D only)
-   ========================================================= */
-const mapsRow = document.getElementById('mapsRow');
-const modeButtons = { split: document.getElementById('viewSplit'), d2: document.getElementById('view2d'), d3: document.getElementById('view3d') };
-function setViewMode(m){
-  mapsRow.classList.remove('mode-split','mode-2d','mode-3d');
-  Object.values(modeButtons).forEach(b=>b.classList.remove('active'));
-  if (m==='split'){ mapsRow.classList.add('mode-split'); modeButtons.split.classList.add('active'); document.getElementById('stMode').textContent='SPLIT'; }
-  if (m==='2d'){ mapsRow.classList.add('mode-2d'); modeButtons.d2.classList.add('active'); document.getElementById('stMode').textContent='2D'; }
-  if (m==='3d'){ mapsRow.classList.add('mode-3d'); modeButtons.d3.classList.add('active'); document.getElementById('stMode').textContent='3D'; }
-  setTimeout(()=>{ leafletMap.invalidateSize(); cesiumViewer.resize(); }, 260);
-}
-modeButtons.split.addEventListener('click', ()=>setViewMode('split'));
-modeButtons.d2.addEventListener('click', ()=>setViewMode('2d'));
-modeButtons.d3.addEventListener('click', ()=>setViewMode('3d'));
-
-window.addEventListener('resize', ()=>{ leafletMap.invalidateSize(); cesiumViewer.resize(); });
-
-leafletMap.on('mousemove', (e)=>{
-  document.getElementById('stLat').textContent = e.latlng.lat.toFixed(5);
-  document.getElementById('stLon').textContent = e.latlng.lng.toFixed(5);
-});
-
-})();
-</script>
+out center;</textarea>
+        </div>
+
+        <div class="header-title" style="font-size: 1.1em; margin-top: 10px;">فیلترهای ابعادی</div>
+        
+        <div class="button-row">
+            <div class="form-group" style="flex: 1;">
+                <label>طول (m):</label>
+                <input type="number" id="filterLength" placeholder="حداقل...">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>عرض (m):</label>
+                <input type="number" id="filterWidth" placeholder="حداقل...">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>ارتفاع (m):</label>
+                <input type="number" id="filterHeight" placeholder="حداقل...">
+            </div>
+        </div>
+        
+        <div class="radio-group">
+            <label>منطق ترکیب فیلترها:</label>
+            <label><input type="radio" name="filterLogic" value="AND" checked> AND</label>
+            <label><input type="radio" name="filterLogic" value="OR"> OR</label>
+        </div>
+
+        <div style="margin-top: 10px;">
+            <button onclick="fetchData()">دریافت و پردازش داده‌ها</button>
+        </div>
+        
+        <div class="button-row">
+            <button class="btn-excel" onclick="exportToExcel()">خروجی XLSX</button>
+            <button class="btn-kml" onclick="exportToKML()">خروجی KML</button>
+        </div>
+
+        <div id="status">وضعیت: آماده</div>
+    </div>
+    
+    <div id="map"></div>
+
+    <script>
+        // 1. مقداردهی اولیه نقشه Leaflet
+        const map = L.map('map').setView([35.6892, 51.3890], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let geojsonLayer = L.geoJSON(null, {
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 6,
+                    fillColor: "#e74c3c",
+                    color: "#c0392b",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+            },
+            onEachFeature: function (feature, layer) {
+                if (feature.properties && feature.properties.name) {
+                    layer.bindPopup(`<b>${feature.properties.name}</b><br>ID: ${feature.properties.id}`);
+                }
+            }
+        }).addTo(map);
+        
+        let globalData = [];
+
+        // 2. الگوریتم Failover برای سرورهای Overpass
+        const OVERPASS_SERVERS = [
+            'https://overpass-api.de/api/interpreter',
+            'https://lz4.overpass-api.de/api/interpreter',
+            'https://z.overpass-api.de/api/interpreter',
+            'https://overpass.kumi.systems/api/interpreter'
+        ];
+
+        // 3. تبدیل مختصات به درجه، دقیقه، ثانیه (DMS)
+        function ddToDms(dd, isLng) {
+            const dir = dd < 0 ? (isLng ? 'W' : 'S') : (isLng ? 'E' : 'N');
+            const absDd = Math.abs(dd);
+            const deg = Math.floor(absDd);
+            const frac = absDd - deg;
+            const min = Math.floor(frac * 60);
+            const sec = ((frac * 60 - min) * 60).toFixed(2);
+            return `${deg}°${min}'${sec}"${dir}`;
+        }
+
+        // 4. مدیریت وضعیت UI
+        function setStatus(msg, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.style.display = 'block';
+            statusEl.innerText = 'وضعیت: ' + msg;
+            
+            if (type === 'error') {
+                statusEl.style.backgroundColor = '#fdedec';
+                statusEl.style.borderColor = '#e74c3c';
+                statusEl.style.color = '#c0392b';
+            } else if (type === 'success') {
+                statusEl.style.backgroundColor = '#e8f8f5';
+                statusEl.style.borderColor = '#1abc9c';
+                statusEl.style.color = '#16a085';
+            } else {
+                statusEl.style.backgroundColor = '#eaf2f8';
+                statusEl.style.borderColor = '#3498db';
+                statusEl.style.color = '#2980b9';
+            }
+        }
+
+        // 5. متد اصلی واکشی داده‌ها از سرور
+        async function fetchData() {
+            const query = document.getElementById('overpassQuery').value;
+            if (!query.trim()) {
+                setStatus('کوئری نمی‌تواند خالی باشد.', 'error');
+                return;
+            }
+
+            setStatus('در حال ارتباط با سرورهای Overpass...', 'info');
+            
+            let data = null;
+            let success = false;
+
+            // تلاش برای اتصال به سرورها به ترتیب
+            for (let i = 0; i < OVERPASS_SERVERS.length; i++) {
+                const server = OVERPASS_SERVERS[i];
+                try {
+                    setStatus(`تلاش برای دریافت از سرور ${i+1}: ${server}`, 'info');
+                    const response = await fetch(server, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'data=' + encodeURIComponent(query)
+                    });
+                    
+                    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                    
+                    data = await response.json();
+                    success = true;
+                    setStatus('داده‌ها با موفقیت دریافت شدند. در حال پردازش...', 'success');
+                    break; 
+                } catch (error) {
+                    console.warn(`خطا در سرور ${server}:`, error);
+                }
+            }
+
+            if (!success || !data) {
+                setStatus('خطا: تمامی سرورهای Overpass در دسترس نیستند.', 'error');
+                return;
+            }
+
+            processFeatureResults(data.elements);
+        }
+
+        // 6. پردازش منطق فیلترها
+        function processFeatureResults(elements) {
+            const minLength = parseFloat(document.getElementById('filterLength').value) || 0;
+            const minWidth = parseFloat(document.getElementById('filterWidth').value) || 0;
+            const minHeight = parseFloat(document.getElementById('filterHeight').value) || 0;
+            const logic = document.querySelector('input[name="filterLogic"]:checked').value;
+
+            globalData = [];
+            geojsonLayer.clearLayers();
+
+            const filteredElements = elements.filter(el => {
+                const tags = el.tags || {};
+                const length = parseFloat(tags.length) || 0;
+                const width = parseFloat(tags.width) || 0;
+                const height = parseFloat(tags.height) || 0;
+
+                let passesFilter = false;
+                
+                const condL = length >= minLength;
+                const condW = width >= minWidth;
+                const condH = height >= minHeight;
+
+                if (logic === 'AND') {
+                    passesFilter = (minLength === 0 || condL) && 
+                                   (minWidth === 0 || condW) && 
+                                   (minHeight === 0 || condH);
+                } else { // OR logic
+                    passesFilter = (minLength > 0 && condL) || 
+                                   (minWidth > 0 && condW) || 
+                                   (minHeight > 0 && condH);
+                    
+                    // اگر هیچ فیلتری وارد نشده باشد، همه را نمایش بده
+                    if (minLength === 0 && minWidth === 0 && minHeight === 0) {
+                        passesFilter = true;
+                    }
+                }
+                return passesFilter;
+            });
+
+            const geoJsonFeatures = [];
+
+            filteredElements.forEach(el => {
+                const lat = el.lat || (el.center && el.center.lat);
+                const lon = el.lon || (el.center && el.center.lon);
+                
+                if (!lat || !lon) return;
+
+                const tags = el.tags || {};
+                const name = tags.name || 'بدون نام';
+                
+                // آماده‌سازی داده برای اکسل و KML
+                globalData.push({
+                    'شناسه (ID)': el.id,
+                    'نوع': el.type,
+                    'نام': name,
+                    'عرض جغرافیایی (DD)': lat,
+                    'طول جغرافیایی (DD)': lon,
+                    'عرض جغرافیایی (DMS)': ddToDms(lat, false),
+                    'طول جغرافیایی (DMS)': ddToDms(lon, true),
+                    'طول (متر)': tags.length || '',
+                    'عرض (متر)': tags.width || '',
+                    'ارتفاع (متر)': tags.height || ''
+                });
+
+                // افزودن به نقشه
+                geoJsonFeatures.push({
+                    "type": "Feature",
+                    "properties": { "name": name, "id": el.id },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [lon, lat]
+                    }
+                });
+            });
+
+            geojsonLayer.addData(geoJsonFeatures);
+            
+            if (geoJsonFeatures.length > 0) {
+                map.fitBounds(geojsonLayer.getBounds(), { padding: [50, 50] });
+            }
+
+            setStatus(`پردازش تکمیل شد. ${filteredElements.length} عارضه پیدا شد.`, 'success');
+        }
+
+        // 7. استخراج کامل اطلاعات به فایل اکسل
+        function exportToExcel() {
+            if (globalData.length === 0) {
+                alert('لطفا ابتدا داده‌ها را دریافت و پردازش کنید.');
+                return;
+            }
+            const worksheet = XLSX.utils.json_to_sheet(globalData);
+            
+            // تنظیم راست‌چین بودن و عرض ستون‌ها در شیت
+            if (!worksheet['!cols']) worksheet['!cols'] = [];
+            worksheet['!cols'] = [
+                { wch: 15 }, { wch: 10 }, { wch: 25 }, { wch: 18 }, { wch: 18 },
+                { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Overpass_GIS_Data");
+            XLSX.writeFile(workbook, "Overpass_Export.xlsx");
+        }
+
+        // 8. تولید خروجی KML برای نرم‌افزارهای سه‌بعدی
+        function exportToKML() {
+            if (globalData.length === 0) {
+                alert('لطفا ابتدا داده‌ها را دریافت و پردازش کنید.');
+                return;
+            }
+            
+            let kml = '<?xml version="1.0" encoding="UTF-8"?>
+';
+            kml += '<kml xmlns="http://www.opengis.net/kml/2.2">
+';
+            kml += '  <Document>
+';
+            kml += '    <name>Overpass GIS Export</name>
+';
+            
+            // استایل پایه KML
+            kml += '    <Style id="customPoint">
+';
+            kml += '      <IconStyle>
+';
+            kml += '        <Icon><href>http://maps.google.com/mapfiles/kml/paddle/red-circle.png</href></Icon>
+';
+            kml += '      </IconStyle>
+';
+            kml += '    </Style>
+';
+
+            globalData.forEach(row => {
+                kml += '    <Placemark>
+';
+                kml += `      <name><![CDATA[${row['نام']}]]></name>
+`;
+                kml += '      <styleUrl>#customPoint</styleUrl>
+';
+                kml += '      <description><![CDATA[';
+                kml += `شناسه: ${row['شناسه (ID)']}<br>`;
+                kml += `نوع عارضه: ${row['نوع']}<br>`;
+                kml += `مختصات: ${row['عرض جغرافیایی (DMS)']} / ${row['طول جغرافیایی (DMS)']}<br>`;
+                kml += `طول: ${row['طول (متر)'] || 'نامشخص'}<br>`;
+                kml += `عرض: ${row['عرض (متر)'] || 'نامشخص'}<br>`;
+                kml += `ارتفاع: ${row['ارتفاع (متر)'] || 'نامشخص'}`;
+                kml += ']]></description>
+';
+                kml += '      <Point>
+';
+                kml += `        <coordinates>${row['طول جغرافیایی (DD)']},${row['عرض جغرافیایی (DD)']},0</coordinates>
+`;
+                kml += '      </Point>
+';
+                kml += '    </Placemark>
+';
+            });
+
+            kml += '  </Document>
+';
+            kml += '</kml>';
+
+            const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Overpass_Export.kml';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
 </body>
 </html>
-
