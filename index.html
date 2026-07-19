@@ -6,6 +6,7 @@
 <title>ژئوسینک — محیط وب GIS دوبعدی و سه‌بعدی</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Vazirmatn:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -49,7 +50,8 @@
     padding:0 16px;
     background:linear-gradient(180deg, var(--panel), var(--panel) 90%, rgba(0,0,0,0));
     border-bottom:1px solid var(--line);
-    z-index:50;
+    z-index:950;
+    position:relative;
   }
   .brand{
     display:flex;
@@ -77,6 +79,7 @@
     border:1px solid var(--line);
     border-radius:var(--radius);
     padding:4px;
+    flex-wrap:nowrap;
   }
   .tbtn{
     display:flex;
@@ -85,11 +88,11 @@
     background:transparent;
     border:none;
     color:var(--muted);
-    padding:8px 12px;
+    padding:8px 11px;
     border-radius:7px;
     cursor:pointer;
     font-family:inherit;
-    font-size:13px;
+    font-size:12.5px;
     font-weight:500;
     white-space:nowrap;
     transition:background .15s, color .15s;
@@ -101,7 +104,7 @@
   .search-wrap{
     position:relative;
     flex:1;
-    max-width:420px;
+    max-width:340px;
   }
   .search-wrap input{
     width:100%;
@@ -131,7 +134,7 @@
     max-height:260px;
     overflow:auto;
     display:none;
-    z-index:80;
+    z-index:980;
   }
   #searchResults div{
     padding:9px 12px;
@@ -162,13 +165,14 @@
     min-width:0;
     overflow:hidden;
   }
-  #leafletContainer{ border-left:2px solid var(--line); }
+  #leafletContainer{ border-left:2px solid var(--line); background:#0a1520; }
+  #cesiumContainer{ background:#0a1520; }
 
   .pane-tag{
     position:absolute;
     top:10px; right:10px;
-    z-index:400;
-    background:rgba(8,12,17,.75);
+    z-index:900;
+    background:rgba(8,12,17,.8);
     backdrop-filter:blur(4px);
     border:1px solid var(--line);
     color:var(--cyan);
@@ -180,29 +184,55 @@
     border-radius:6px;
     pointer-events:none;
   }
-  #cesiumContainer .pane-tag{ right:auto; left:10px; color:var(--amber); }
+  #cesiumContainer .pane-tag{ color:var(--amber); }
+
+  /* per-pane independent base layer selector */
+  .mini-select{
+    position:absolute;
+    top:10px; left:10px;
+    z-index:900;
+    background:rgba(15,21,29,.92);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:inherit;
+    font-size:11.5px;
+    padding:7px 8px;
+    border-radius:7px;
+    max-width:190px;
+    outline:none;
+    cursor:pointer;
+  }
+  .mini-select:focus{ border-color:var(--cyan-dim); }
 
   /* ---------- side floating panels ---------- */
   .float-panel{
     position:absolute;
-    z-index:60;
-    background:rgba(15,21,29,.92);
+    z-index:870;
+    background:rgba(15,21,29,.95);
     backdrop-filter:blur(6px);
     border:1px solid var(--line);
     border-radius:var(--radius);
-    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
     color:var(--text);
     font-size:12.5px;
   }
   #layersPanel{
-    top:10px; left:10px;
+    top:52px; left:10px;
     width:250px;
-    max-height:calc(100% - 90px);
+    max-height:calc(100% - 130px);
     overflow-y:auto;
     padding:10px;
     display:none;
   }
-  #layersPanel h4, #resultsPanel h4{
+  #searchPanel{
+    top:52px; left:10px;
+    width:280px;
+    max-height:calc(100% - 130px);
+    overflow-y:auto;
+    padding:12px;
+    display:none;
+  }
+  #layersPanel h4, #resultsPanel h4, #searchPanel h4{
     margin:14px 0 8px;
     font-family:'Rajdhani',sans-serif;
     font-size:12px;
@@ -210,7 +240,7 @@
     color:var(--muted);
     text-transform:uppercase;
   }
-  #layersPanel h4:first-child{ margin-top:0; }
+  #layersPanel h4:first-child, #searchPanel h4:first-child{ margin-top:0; }
   .layer-opt{
     display:flex; align-items:center; gap:8px;
     padding:7px 8px; border-radius:6px; cursor:pointer;
@@ -238,34 +268,50 @@
     cursor:pointer;
     font-family:inherit;
     font-size:12px;
-    margin-top:4px;
+    margin-top:6px;
   }
   .panel-btn:hover{ border-color:var(--cyan-dim); color:var(--cyan); }
+  .panel-btn.primary{ background:var(--cyan); color:#03181c; font-weight:700; border-color:var(--cyan); }
+  .panel-btn.primary:hover{ opacity:.9; color:#03181c; }
+  .panel-btn.danger{ border-color:var(--danger); color:var(--danger); }
+
+  #searchPanel label{ display:block; font-size:11px; color:var(--muted); margin:8px 0 4px; }
+  #searchPanel select, #searchPanel input[type=text], #searchPanel input[type=number]{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:7px 8px; border-radius:6px; font-family:inherit; font-size:12px;
+  }
+  .dim-row{ display:flex; gap:6px; }
+  .dim-row > div{ flex:1; }
+  .hint-text{ font-size:10.5px; color:var(--muted); line-height:1.6; margin-top:6px; }
 
   #resultsPanel{
     bottom:14px; left:10px;
-    width:260px;
-    max-height:220px;
+    width:270px;
+    max-height:240px;
     padding:10px;
     overflow:auto;
     display:none;
   }
   .result-row{
-    display:flex; justify-content:space-between; align-items:center;
-    padding:6px 8px; border-radius:6px; margin-bottom:4px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:6px;
+    padding:7px 8px; border-radius:6px; margin-bottom:5px;
     background:var(--panel-2);
     border:1px solid var(--line);
+    cursor:pointer;
   }
-  .result-row .val{ font-family:'JetBrains Mono',monospace; color:var(--cyan); direction:ltr; }
+  .result-row:hover{ border-color:var(--cyan-dim); }
+  .result-row.active{ border-color:var(--cyan); background:rgba(45,212,232,.1); }
+  .result-row .rtext{ font-size:11.5px; line-height:1.5; }
+  .result-row .val{ font-family:'JetBrains Mono',monospace; color:var(--cyan); direction:ltr; font-size:11px; }
   .result-row button{
     background:none; border:none; color:var(--danger); cursor:pointer; font-size:14px;
-    padding:0 4px;
+    padding:0 4px; flex:none;
   }
 
   #navCluster{
     position:absolute;
     bottom:14px; right:10px;
-    z-index:60;
+    z-index:900;
     display:flex; flex-direction:column; gap:6px;
   }
   .navbtn{
@@ -282,7 +328,7 @@
 
   #crosshair-hint{
     position:absolute; top:10px; left:50%; transform:translateX(-50%);
-    z-index:60; background:rgba(245,166,35,.14); border:1px solid var(--amber);
+    z-index:900; background:rgba(245,166,35,.14); border:1px solid var(--amber);
     color:var(--amber); font-size:12px; padding:6px 14px; border-radius:20px;
     display:none; white-space:nowrap;
   }
@@ -305,17 +351,25 @@
   .status-sep{ width:1px; height:14px; background:var(--line); }
   #syncDot{ width:7px; height:7px; border-radius:50%; background:var(--cyan); box-shadow:0 0 6px var(--cyan); display:inline-block; margin-left:6px;}
 
-  /* cesium credit cleanup */
-  .cesium-viewer-bottom{ display:none !important; }
-  .cesium-widget-credits{ display:none !important; }
+  /* cesium chrome cleanup — force-hide any default widgets */
+  .cesium-viewer-bottom, .cesium-widget-credits, .cesium-viewer-toolbar,
+  .cesium-viewer-animationContainer, .cesium-viewer-timelineContainer,
+  .cesium-viewer-fullscreenContainer, .cesium-viewer-geocoderContainer,
+  .cesium-viewer-homeButtonContainer, .cesium-viewer-sceneModePickerContainer,
+  .cesium-viewer-navigationHelpButtonContainer, .cesium-navigation-help,
+  .cesium-viewer-vrContainer{ display:none !important; }
 
   ::-webkit-scrollbar{ width:6px; height:6px; }
   ::-webkit-scrollbar-thumb{ background:#26333f; border-radius:3px; }
 
+  /* leaflet-draw toolbar restyle to match theme (kept minimal, top-left, small) */
+  .leaflet-draw.leaflet-control{ margin-top:52px !important; }
+
   @media (max-width:760px){
     .brand-text{ display:none; }
-    .search-wrap{ max-width:150px; }
+    .search-wrap{ max-width:120px; }
     .tbtn span{ display:none; }
+    .mini-select{ max-width:110px; font-size:10px; }
   }
 </style>
 </head>
@@ -345,9 +399,13 @@
     </div>
 
     <div class="toolgroup">
-      <button class="tbtn" id="btnLayers" title="لایه‌های نقشه">
+      <button class="tbtn" id="btnLayers" title="لایه‌های تحلیلی و داده سفارشی">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
         <span>لایه‌ها</span>
+      </button>
+      <button class="tbtn" id="btnSearchFeatures" title="جستجوی عوارض طبیعی و مصنوعی">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="M20 20l-5-5"/><path d="M10 7v6M7 10h6"/></svg>
+        <span>جستجوی عوارض</span>
       </button>
       <button class="tbtn" id="btnMeasureDist" title="اندازه‌گیری فاصله">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21 21 3"/><path d="M7 17l2 2M11 13l2 2M15 9l2 2"/></svg>
@@ -384,18 +442,9 @@
   <div id="mapsRow" class="mode-split">
     <div id="leafletContainer">
       <div class="pane-tag">نمای ۲بعدی</div>
+      <select id="baseSelect2D" class="mini-select"></select>
 
       <div id="layersPanel" class="float-panel">
-        <h4>پایه نقشه — نمای ۲بعدی</h4>
-        <div class="layer-opt sel" data-target="2d" data-layer="osm"><span class="swatch" style="background:#4b8f4b"></span> خیابانی (OSM)</div>
-        <div class="layer-opt" data-target="2d" data-layer="sat"><span class="swatch" style="background:#3a4a5c"></span> تصویر ماهواره‌ای</div>
-        <div class="layer-opt" data-target="2d" data-layer="topo"><span class="swatch" style="background:#b08c4b"></span> توپوگرافی</div>
-
-        <h4>پایه نقشه — نمای ۳بعدی</h4>
-        <div class="layer-opt sel" data-target="3d" data-layer="osm"><span class="swatch" style="background:#4b8f4b"></span> خیابانی (OSM)</div>
-        <div class="layer-opt" data-target="3d" data-layer="sat"><span class="swatch" style="background:#3a4a5c"></span> تصویر ماهواره‌ای</div>
-        <div class="layer-opt" data-target="3d" data-layer="topo"><span class="swatch" style="background:#b08c4b"></span> توپوگرافی</div>
-
         <h4>لایه‌های تحلیلی برخط</h4>
         <label class="overlay-opt"><input type="checkbox" id="ovEarthquake"> زلزله‌های ۲۴ساعت اخیر (USGS)</label>
         <label class="overlay-opt"><input type="checkbox" id="ovRain"> رادار بارش زنده (RainViewer)</label>
@@ -403,21 +452,45 @@
         <label class="overlay-opt"><input type="checkbox" id="ovNews"> اخبار برخط جهانی (GDELT)</label>
 
         <h4>داده سفارشی کاربر</h4>
-        <button class="panel-btn" id="btnUpload">بارگذاری GeoJSON / Shapefile (zip)</button>
-        <input type="file" id="fileUpload" accept=".geojson,.json,.zip" style="display:none">
+        <button class="panel-btn" id="btnUpload">بارگذاری GeoJSON / KML / Shapefile(zip)</button>
+        <input type="file" id="fileUpload" accept=".geojson,.json,.kml,.zip" style="display:none">
       </div>
 
       <div id="resultsPanel" class="float-panel">
-        <h4>نتایج تحلیل</h4>
+        <h4>نتایج تحلیل و جستجو</h4>
         <div id="resultsList"></div>
+      </div>
+
+      <div id="searchPanel" class="float-panel">
+        <h4>جستجوی عوارض طبیعی و مصنوعی</h4>
+        <label>دسته‌بندی تخصصی عوارض</label>
+        <select id="treeMenu"></select>
+        <label>کلمه کلیدی یا برچسب دستی (OSM tag)</label>
+        <input type="text" id="keywordInput" placeholder="مثلا: پل، پادگان، رادار...">
+        <label>فیلتر ابعاد سازه (متر — صفر یعنی غیرفعال)</label>
+        <div class="dim-row">
+          <div><input type="number" id="lengthFilter" placeholder="طول" min="0" value="0"></div>
+          <div><input type="number" id="widthFilter" placeholder="عرض" min="0" value="0"></div>
+          <div><input type="number" id="heightFilter" placeholder="ارتفاع" min="0" value="0"></div>
+        </div>
+        <label>حالت ترکیب فیلترها</label>
+        <select id="filterMode">
+          <option value="or">OR — کافیست یک شرط برقرار باشد</option>
+          <option value="and">AND — همه شرط‌ها باید برقرار باشند</option>
+        </select>
+        <div class="hint-text">۱) با ابزار ترسیم (گوشه بالا-چپ نقشه دوبعدی) یک محدوده مستطیلی یا چندضلعی رسم کنید. ۲) دسته یا کلمه کلیدی را تعیین کنید. ۳) دکمه جستجو را بزنید.</div>
+        <button class="panel-btn primary" id="btnRunSearch">🔍 اجرای جستجو در محدوده رسم‌شده</button>
+        <button class="panel-btn" id="btnExportExcel" style="display:none">📊 دانلود خروجی اکسل</button>
+        <button class="panel-btn danger" id="btnClearSearch">پاک‌سازی نتایج جستجو</button>
       </div>
     </div>
 
     <div id="cesiumContainer">
       <div class="pane-tag">نمای ۳بعدی</div>
+      <select id="baseSelect3D" class="mini-select"></select>
     </div>
 
-    <div id="crosshair-hint">حالت ترسیم فعال است — روی نقشه دوبعدی کلیک کنید، برای پایان دو‌بار کلیک کنید</div>
+    <div id="crosshair-hint">حالت ترسیم فعال است</div>
 
     <div id="navCluster">
       <div class="navbtn" id="navHome" title="بازگشت به دید کلی">
@@ -446,9 +519,12 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
+<script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
 (function(){
@@ -457,25 +533,46 @@
    1) TILE SOURCES (100% free, no API key / no Cesium ion)
    ========================================================= */
 const SOURCES = {
-  osm:  { leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© OpenStreetMap contributors'}},
+  osm:  { label:'خیابانی (OSM)', color:'#4b8f4b', leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© OpenStreetMap contributors'}},
           cesium:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
-  sat:  { leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19, attribution:'© Esri, Maxar, Earthstar Geographics'}},
+  sat:  { label:'تصویر ماهواره‌ای (Esri)', color:'#3a4a5c', leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19, attribution:'© Esri, Maxar, Earthstar Geographics'}},
           cesium:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'} },
-  topo: { leaflet:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)'}},
-          cesium:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} }
+  topo: { label:'توپوگرافی (OpenTopoMap)', color:'#b08c4b', leaflet:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)'}},
+          cesium:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
+  dark: { label:'تم تاریک (CartoDB Dark)', color:'#1b2430', leaflet:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
+          cesium:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', subdomains:['a','b','c','d']} },
+  light:{ label:'تم روشن (CartoDB Positron)', color:'#dfe6ec', leaflet:{url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
+          cesium:{url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', subdomains:['a','b','c','d']} },
+  hot:  { label:'نقشه بشردوستانه (HOT)', color:'#a23a3a', leaflet:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© HOT OSM'}},
+          cesium:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', subdomains:['a','b','c']} }
 };
+const SOURCE_KEYS = Object.keys(SOURCES);
+
+function fillBaseSelect(selectEl){
+  SOURCE_KEYS.forEach(key=>{
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = SOURCES[key].label;
+    selectEl.appendChild(opt);
+  });
+}
+fillBaseSelect(document.getElementById('baseSelect2D'));
+fillBaseSelect(document.getElementById('baseSelect3D'));
+
 /* =========================================================
    2) LEAFLET (2D)
    ========================================================= */
-const leafletMap = L.map('leafletContainer', { zoomControl:false, attributionControl:true })
+const leafletMap = L.map('leafletContainer', { zoomControl:false, attributionControl:true, preferCanvas:true })
   .setView([35.6892, 51.3890], 6); // تهران - نقطه شروع
 
 let leafletTileLayer = L.tileLayer(SOURCES.osm.leaflet.url, SOURCES.osm.leaflet.opts).addTo(leafletMap);
-
 function setLeafletSource(key){
   leafletMap.removeLayer(leafletTileLayer);
   leafletTileLayer = L.tileLayer(SOURCES[key].leaflet.url, SOURCES[key].leaflet.opts).addTo(leafletMap);
 }
+// اطمینان از رندر صحیح کاشی‌ها حتی اگر گرید CSS با تاخیر یک فریم ابعاد را نهایی کند
+requestAnimationFrame(()=> leafletMap.invalidateSize());
+window.addEventListener('load', ()=> setTimeout(()=> leafletMap.invalidateSize(), 200));
 
 /* =========================================================
    3) CESIUM (3D) — no Ion token required
@@ -494,18 +591,20 @@ const cesiumViewer = new Cesium.Viewer('cesiumContainer', {
   fullscreenButton: false,
   infoBox: false,
   selectionIndicator: false,
+  vrButton: false,
   terrainProvider: new Cesium.EllipsoidTerrainProvider(),
   contextOptions: { webgl: { alpha: false } }
 });
 cesiumViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a1520');
 cesiumViewer.scene.skyAtmosphere.show = true;
 cesiumViewer.scene.fog.enabled = true;
-cesiumViewer._cesiumWidget._creditContainer.style.display = 'none';
+if (cesiumViewer._cesiumWidget && cesiumViewer._cesiumWidget._creditContainer){
+  cesiumViewer._cesiumWidget._creditContainer.style.display = 'none';
+}
 
 let cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
   new Cesium.UrlTemplateImageryProvider({ url: SOURCES.osm.cesium.url, subdomains: SOURCES.osm.cesium.subdomains, credit:'OSM' })
 );
-
 function setCesiumSource(key){
   cesiumViewer.imageryLayers.remove(cesiumImageryLayer, true);
   cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
@@ -518,17 +617,20 @@ cesiumViewer.camera.flyTo({
   duration: 0
 });
 
+/* independent base-layer selectors per pane */
+document.getElementById('baseSelect2D').value = 'osm';
+document.getElementById('baseSelect3D').value = 'osm';
+document.getElementById('baseSelect2D').addEventListener('change', e=> setLeafletSource(e.target.value));
+document.getElementById('baseSelect3D').addEventListener('change', e=> setCesiumSource(e.target.value));
+
 /* =========================================================
    4) SYNC ENGINE — 2D ⇄ 3D camera
    ========================================================= */
 let syncingFromLeaflet = false;
 let syncingFromCesium = false;
 
-function heightFromZoom(zoom){ return 591657550.5 / Math.pow(2, zoom - 1); } // approx meters
-function zoomFromHeight(h){
-  let z = Math.log2(591657550.5 / h) + 1;
-  return Math.max(2, Math.min(19, z));
-}
+function heightFromZoom(zoom){ return 591657550.5 / Math.pow(2, zoom - 1); }
+function zoomFromHeight(h){ return Math.max(2, Math.min(19, Math.log2(591657550.5 / h) + 1)); }
 
 leafletMap.on('moveend', function(){
   if (syncingFromCesium) return;
@@ -560,74 +662,70 @@ function updateStatus(lat, lon, zoom){
   document.getElementById('stLat').textContent = lat.toFixed(5);
   document.getElementById('stLon').textContent = lon.toFixed(5);
   document.getElementById('stZoom').textContent = zoom;
-  const scale = Math.round(591657550.5 / Math.pow(2, zoom-1) / 0.28); // rough map-scale estimate
+  const scale = Math.round(591657550.5 / Math.pow(2, zoom-1) / 0.28);
   document.getElementById('stScale').textContent = '1:' + scale.toLocaleString('en-US');
 }
 updateStatus(35.6892, 51.3890, 6);
 
 /* =========================================================
-   5) LAYER SWITCHER PANEL
+   5) FLOATING PANEL TOGGLES (layers / search) — mutually exclusive
    ========================================================= */
-const btnLayers = document.getElementById('btnLayers');
 const layersPanel = document.getElementById('layersPanel');
-btnLayers.addEventListener('click', ()=>{
-  layersPanel.style.display = layersPanel.style.display === 'block' ? 'none' : 'block';
+const searchPanel = document.getElementById('searchPanel');
+function closeAllPanels(){ layersPanel.style.display='none'; searchPanel.style.display='none'; }
+document.getElementById('btnLayers').addEventListener('click', ()=>{
+  const willOpen = layersPanel.style.display !== 'block';
+  closeAllPanels();
+  layersPanel.style.display = willOpen ? 'block' : 'none';
 });
-
-// هر محیط (۲بعدی و ۳بعدی) لایه پایه‌ی خودش را کاملا مستقل از دیگری انتخاب می‌کند
-let source2D = 'osm';
-let source3D = 'osm';
-document.querySelectorAll('.layer-opt[data-target]').forEach(opt=>{
-  opt.addEventListener('click', ()=>{
-    const target = opt.dataset.target;
-    document.querySelectorAll('.layer-opt[data-target="'+target+'"]').forEach(o=>o.classList.remove('sel'));
-    opt.classList.add('sel');
-    if (target === '2d'){ source2D = opt.dataset.layer; setLeafletSource(source2D); }
-    else { source3D = opt.dataset.layer; setCesiumSource(source3D); }
-  });
+document.getElementById('btnSearchFeatures').addEventListener('click', ()=>{
+  const willOpen = searchPanel.style.display !== 'block';
+  closeAllPanels();
+  searchPanel.style.display = willOpen ? 'block' : 'none';
 });
 
 /* =========================================================
-   6) SEARCH (Nominatim — free OSM geocoding)
+   6) SEARCH BOX — Nominatim (free OSM geocoding)
    ========================================================= */
 const searchInput = document.getElementById('searchInput');
-const searchResults = document.getElementById('searchResults');
+const searchResultsBox = document.getElementById('searchResults');
 let searchTimer = null;
 
 searchInput.addEventListener('input', ()=>{
   clearTimeout(searchTimer);
   const q = searchInput.value.trim();
-  if (q.length < 3){ searchResults.style.display='none'; return; }
+  if (q.length < 3){ searchResultsBox.style.display='none'; return; }
   searchTimer = setTimeout(async ()=>{
     try{
       const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&q=' + encodeURIComponent(q));
       const data = await res.json();
-      searchResults.innerHTML = '';
-      if (!data.length){ searchResults.style.display='none'; return; }
+      searchResultsBox.innerHTML = '';
+      if (!data.length){ searchResultsBox.style.display='none'; return; }
       data.forEach(item=>{
         const div = document.createElement('div');
         div.textContent = item.display_name;
         div.addEventListener('click', ()=>{
           const lat = parseFloat(item.lat), lon = parseFloat(item.lon);
           leafletMap.setView([lat, lon], 13);
-          searchResults.style.display = 'none';
+          searchResultsBox.style.display = 'none';
           searchInput.value = item.display_name;
           dropMarker(lat, lon, item.display_name.split(',')[0]);
         });
-        searchResults.appendChild(div);
+        searchResultsBox.appendChild(div);
       });
-      searchResults.style.display = 'block';
+      searchResultsBox.style.display = 'block';
     }catch(e){ console.error(e); }
   }, 450);
 });
 document.addEventListener('click', (e)=>{
-  if (!searchResults.contains(e.target) && e.target !== searchInput) searchResults.style.display='none';
+  if (!searchResultsBox.contains(e.target) && e.target !== searchInput) searchResultsBox.style.display='none';
 });
 
 /* =========================================================
-   7) MARKERS / DRAWING / MEASUREMENT (synced 2D + 3D)
+   7) MARKERS / DRAWING / MEASUREMENT / BUFFER (synced 2D + 3D)
    ========================================================= */
 let mode = null; // null | 'marker' | 'distance' | 'area'
+let bufferMode = false;
 let drawPoints = [];
 let tempLeafletLayer = null;
 let leafletMarkers = [];
@@ -653,6 +751,15 @@ document.getElementById('btnMeasureDist').addEventListener('click', ()=>setMode(
 document.getElementById('btnMeasureArea').addEventListener('click', ()=>setMode('area'));
 document.getElementById('btnMarker').addEventListener('click', ()=>setMode('marker'));
 
+document.getElementById('btnBuffer').addEventListener('click', ()=>{
+  bufferMode = !bufferMode;
+  mode = null;
+  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('btnBuffer').classList.toggle('active', bufferMode);
+  hint.style.display = bufferMode ? 'block' : 'none';
+  hint.textContent = 'حالت بافر تحلیلی — روی نقشه دوبعدی کلیک کنید و شعاع را به کیلومتر وارد کنید';
+});
+
 function dropMarker(lat, lon, label){
   const m = L.marker([lat, lon]).addTo(leafletMap).bindTooltip(label || 'نشانگر', {permanent:false});
   leafletMarkers.push(m);
@@ -664,27 +771,19 @@ function dropMarker(lat, lon, label){
   cesiumEntities.push(ent);
 }
 
-function addResult(label, value){
+function addResult(label, value, onClick){
   resultsPanel.style.display = 'block';
   resultCounter++;
   const id = 'res_' + resultCounter;
   const row = document.createElement('div');
   row.className = 'result-row';
   row.id = id;
-  row.innerHTML = '<span>'+label+'</span><span class="val">'+value+'</span><button data-id="'+id+'">✕</button>';
+  row.innerHTML = '<span class="rtext">'+label+'<br><span class="val">'+value+'</span></span><button data-id="'+id+'">✕</button>';
+  if (onClick){ row.addEventListener('click', (ev)=>{ if(ev.target.tagName==='BUTTON') return; onClick(); }); }
   resultsList.appendChild(row);
   row.querySelector('button').addEventListener('click', ()=>row.remove());
+  return row;
 }
-
-let bufferMode = false;
-document.getElementById('btnBuffer').addEventListener('click', ()=>{
-  bufferMode = !bufferMode;
-  mode = null;
-  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
-  document.getElementById('btnBuffer').classList.toggle('active', bufferMode);
-  hint.style.display = bufferMode ? 'block' : 'none';
-  hint.textContent = 'حالت بافر تحلیلی — روی نقشه دوبعدی کلیک کنید و شعاع را به کیلومتر وارد کنید';
-});
 
 function drawBuffer(lat, lng, radiusKm){
   const pt = turf.point([lng, lat]);
@@ -713,7 +812,7 @@ leafletMap.on('click', function(e){
 
   if (mode === 'marker'){
     dropMarker(lat, lng, 'نقطه دلخواه');
-    setMode('marker'); // toggles off after placing one point
+    setMode('marker');
     return;
   }
 
@@ -757,25 +856,15 @@ leafletMap.on('dblclick', function(e){
 
 function syncShapeToCesium(points, kind){
   const positions = [];
-  points.forEach(p=> positions.push(p[1], p[0])); // lon,lat pairs
+  points.forEach(p=> positions.push(p[1], p[0]));
   if (kind === 'polyline'){
     const ent = cesiumViewer.entities.add({
-      polyline: {
-        positions: Cesium.Cartesian3.fromDegreesArray(positions),
-        width: 4,
-        material: Cesium.Color.fromCssColorString('#2dd4e8'),
-        clampToGround: true
-      }
+      polyline: { positions: Cesium.Cartesian3.fromDegreesArray(positions), width: 4, material: Cesium.Color.fromCssColorString('#2dd4e8'), clampToGround: true }
     });
     cesiumEntities.push(ent);
   } else {
     const ent = cesiumViewer.entities.add({
-      polygon: {
-        hierarchy: Cesium.Cartesian3.fromDegreesArray(positions),
-        material: Cesium.Color.fromCssColorString('#f5a623').withAlpha(.3),
-        outline: true,
-        outlineColor: Cesium.Color.fromCssColorString('#f5a623')
-      }
+      polygon: { hierarchy: Cesium.Cartesian3.fromDegreesArray(positions), material: Cesium.Color.fromCssColorString('#f5a623').withAlpha(.3), outline: true, outlineColor: Cesium.Color.fromCssColorString('#f5a623') }
     });
     cesiumEntities.push(ent);
   }
@@ -808,7 +897,7 @@ async function toggleEarthquakes(on){
         earthquakeCesiumEntities.push(ent);
       });
       earthquakeLeafletGroup.addTo(leafletMap);
-    }catch(err){ console.error(err); alert('خطا در دریافت داده زلزله از USGS'); }
+    }catch(err){ console.error(err); alert('خطا در دریافت داده زلزله از USGS — ممکن است این سرویس در شبکه شما در دسترس نباشد.'); document.getElementById('ovEarthquake').checked=false; }
   } else {
     leafletMap.removeLayer(earthquakeLeafletGroup);
     earthquakeLeafletGroup.clearLayers();
@@ -837,7 +926,7 @@ async function toggleRain(on){
         new Cesium.UrlTemplateImageryProvider({ url: tileUrl })
       );
       rainCesiumLayer.alpha = .6;
-    }catch(err){ console.error(err); alert('خطا در دریافت رادار بارش از RainViewer'); }
+    }catch(err){ console.error(err); alert('خطا در دریافت رادار بارش از RainViewer'); document.getElementById('ovRain').checked=false; }
   } else {
     if (rainLeafletLayer){ leafletMap.removeLayer(rainLeafletLayer); rainLeafletLayer = null; }
     if (rainCesiumLayer){ cesiumViewer.imageryLayers.remove(rainCesiumLayer, true); rainCesiumLayer = null; }
@@ -872,7 +961,7 @@ async function toggleNews(on){
         newsCesiumEntities.push(ent);
       });
       newsLeafletGroup.addTo(leafletMap);
-    }catch(err){ console.error(err); alert('خطا در دریافت اخبار برخط از GDELT'); }
+    }catch(err){ console.error(err); alert('خطا در دریافت اخبار برخط از GDELT — ممکن است این سرویس در شبکه شما در دسترس نباشد.'); document.getElementById('ovNews').checked=false; }
   } else {
     leafletMap.removeLayer(newsLeafletGroup);
     newsLeafletGroup.clearLayers();
@@ -883,7 +972,7 @@ async function toggleNews(on){
 document.getElementById('ovNews').addEventListener('change', e=>toggleNews(e.target.checked));
 
 /* =========================================================
-   7e) داده سفارشی کاربر: بارگذاری GeoJSON / Shapefile (zip)
+   7e) داده سفارشی کاربر: بارگذاری GeoJSON / KML / Shapefile (zip)
    ========================================================= */
 let uploadedLeafletLayer = null;
 let uploadedCesiumEntities = [];
@@ -894,9 +983,14 @@ document.getElementById('fileUpload').addEventListener('change', async (e)=>{
   if (!file) return;
   try{
     let geojson;
-    if (file.name.toLowerCase().endsWith('.zip')){
+    const lname = file.name.toLowerCase();
+    if (lname.endsWith('.zip')){
       const buf = await file.arrayBuffer();
       geojson = await shp(buf);
+    } else if (lname.endsWith('.kml')){
+      const text = await file.text();
+      const xml = new DOMParser().parseFromString(text, 'text/xml');
+      geojson = toGeoJSON.kml(xml);
     } else {
       const text = await file.text();
       geojson = JSON.parse(text);
@@ -904,7 +998,7 @@ document.getElementById('fileUpload').addEventListener('change', async (e)=>{
     addUploadedGeoJSON(geojson);
   }catch(err){
     console.error(err);
-    alert('خطا در خواندن فایل. لطفا از فرمت معتبر GeoJSON (.json/.geojson) یا Shapefile فشرده (.zip) استفاده کنید.');
+    alert('خطا در خواندن فایل. لطفا از فرمت معتبر GeoJSON (.json/.geojson)، KML (.kml) یا Shapefile فشرده (.zip) استفاده کنید.');
   }
   e.target.value = '';
 });
@@ -947,11 +1041,234 @@ function addUploadedGeoJSON(geojson){
   addResult('لایه سفارشی بارگذاری‌شده', features.length + ' عنصر');
 }
 
+/* =========================================================
+   7f) جستجوی عوارض طبیعی و مصنوعی (Overpass API — رایگان، بدون کلید)
+   با الگوریتم چند-سروره fail-over مطابق اسکریپت مرجع کاربر
+   ========================================================= */
+const OSM_DICTIONARY = {
+  "خطوط برق": "power=line", "دکل مخابراتی": "man_made=tower", "تاسیسات مخابراتی": "telecom=exchange",
+  "خطوط آب": "man_made=pipeline", "خطوط نفت": "man_made=pipeline", "خطوط گاز": "man_made=pipeline",
+  "پالایشگاه": "industrial=refinery", "نیروگاه برق": "power=plant", "پست برق": "power=substation",
+  "مخزن سوخت": "man_made=storage_tank", "دکل حفاری": "man_made=drilling_rig", "سد": "waterway=dam",
+  "پادگان": "landuse=military", "پایگاه هوایی نظامی": "aeroway=aerodrome", "منطقه ممنوعه نظامی": "military=danger_zone",
+  "پناهگاه": "military=bunker", "تاسیسات دریایی نظامی": "military=naval_base", "ایستگاه رادار": "military=radar",
+  "جاده": "highway", "بندر و اسکله": "harbour=yes", "اسکله": "man_made=pier", "لنگرگاه": "mooring=yes",
+  "فرودگاه": "aeroway=aerodrome", "باند پرواز": "aeroway=runway", "تونل": "tunnel=yes", "پل": "bridge=yes",
+  "ایستگاه راه‌آهن": "railway=station", "خطوط راه‌آهن": "railway=rail", "انبار لجستیک": "building=warehouse",
+  "پمپ بنزین": "amenity=fuel", "ترمینال مسافربری": "amenity=bus_station",
+  "بیمارستان": "amenity=hospital", "درمانگاه": "amenity=clinic", "مدرسه": "amenity=school",
+  "دانشگاه": "amenity=university", "مسجد": "amenity=place_of_worship", "پارک": "leisure=park",
+  "هتل": "tourism=hotel", "رستوران": "amenity=restaurant", "بانک": "amenity=bank", "کارخانه": "landuse=industrial",
+  "رودخانه": "waterway=river", "دریاچه": "natural=water", "جنگل": "natural=wood", "کوه / قله": "natural=peak",
+  "غار": "natural=cave_entrance", "ساحل": "natural=beach", "بیابان": "natural=desert", "آبشار": "waterway=waterfall"
+};
+const FEATURE_GROUPS = {
+  "🚚 ترابری، تقاطع‌ها و بنادر": ["پل","تونل","جاده","فرودگاه","باند پرواز","خطوط راه‌آهن","ایستگاه راه‌آهن","بندر و اسکله","اسکله","لنگرگاه","ترمینال مسافربری"],
+  "⚡ انرژی و تاسیسات حیاتی": ["خطوط برق","نیروگاه برق","پست برق","پالایشگاه","مخزن سوخت","دکل حفاری","دکل مخابراتی","تاسیسات مخابراتی","خطوط آب","خطوط نفت","خطوط گاز","سد","پمپ بنزین"],
+  "🪖 نظامی و امنیتی": ["پادگان","پایگاه هوایی نظامی","منطقه ممنوعه نظامی","پناهگاه","تاسیسات دریایی نظامی","ایستگاه رادار"],
+  "🌍 عوارض طبیعی": ["رودخانه","دریاچه","جنگل","کوه / قله","غار","ساحل","بیابان","آبشار"],
+  "🏙 خدمات شهری": ["بیمارستان","درمانگاه","مدرسه","دانشگاه","مسجد","پارک","هتل","رستوران","بانک","کارخانه","انبار لجستیک"]
+};
+function fillTreeMenu(){
+  const sel = document.getElementById('treeMenu');
+  const blank = document.createElement('option');
+  blank.value=''; blank.textContent='-- انتخاب دسته‌بندی تخصصی عوارض --';
+  sel.appendChild(blank);
+  Object.keys(FEATURE_GROUPS).forEach(groupName=>{
+    const og = document.createElement('optgroup');
+    og.label = groupName;
+    FEATURE_GROUPS[groupName].forEach(item=>{
+      const opt = document.createElement('option');
+      opt.value = item; opt.textContent = item;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+}
+fillTreeMenu();
+document.getElementById('treeMenu').addEventListener('change', function(){
+  if (this.value){ document.getElementById('keywordInput').value = this.value; }
+});
+
+const OVERPASS_SERVERS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter"
+];
+
+function extractNumber(value){
+  if (value === null || value === undefined) return null;
+  const m = String(value).match(/[-+]?\d*\.?\d+/);
+  return m ? parseFloat(m[0]) : null;
+}
+function ddToDms(dd, isLat){
+  let direction = isLat ? 'N' : 'E';
+  if (dd < 0) direction = isLat ? 'S' : 'W';
+  dd = Math.abs(dd);
+  const degrees = Math.floor(dd);
+  const minutesFloat = (dd - degrees) * 60;
+  const minutes = Math.floor(minutesFloat);
+  const seconds = Math.round((minutesFloat - minutes) * 60 * 100) / 100;
+  return degrees + "°" + minutes + "'" + seconds + '"' + direction;
+}
+
+// ابزار ترسیم محدوده (Leaflet.Draw) — همیشه فعال، گوشه بالا-چپ نقشه دوبعدی
+const searchDrawnItems = new L.FeatureGroup();
+leafletMap.addLayer(searchDrawnItems);
+const searchDrawControl = new L.Control.Draw({
+  position: 'topleft',
+  edit: { featureGroup: searchDrawnItems },
+  draw: { polygon:true, rectangle:true, circle:false, polyline:false, marker:false, circlemarker:false }
+});
+leafletMap.addControl(searchDrawControl);
+let searchBBox = null;
+leafletMap.on(L.Draw.Event.CREATED, function(e){
+  searchDrawnItems.clearLayers();
+  const layer = e.layer;
+  searchDrawnItems.addLayer(layer);
+  const b = layer.getBounds();
+  searchBBox = { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
+});
+
+let featureLeafletGroup = L.layerGroup().addTo(leafletMap);
+let featureCesiumEntities = [];
+let featureResultsData = []; // برای خروجی اکسل
+
+async function runFeatureSearch(){
+  if (!searchBBox){ alert('❌ ابتدا با ابزار ترسیم (گوشه بالا-چپ نقشه دوبعدی)، یک محدوده مستطیلی یا چندضلعی رسم کنید.'); return; }
+  const keyword = document.getElementById('keywordInput').value.trim();
+  if (!keyword){ alert('❌ لطفا یک دسته‌بندی انتخاب کنید یا کلمه کلیدی وارد نمایید.'); return; }
+
+  const lengthFilter = parseFloat(document.getElementById('lengthFilter').value) || 0;
+  const widthFilter = parseFloat(document.getElementById('widthFilter').value) || 0;
+  const heightFilter = parseFloat(document.getElementById('heightFilter').value) || 0;
+  const filterMode = document.getElementById('filterMode').value;
+
+  const osmTag = OSM_DICTIONARY[keyword] || ('name~"' + keyword.replace(/"/g,'') + '",i');
+  const b = searchBBox;
+  const query = '[out:json][timeout:25];(nwr[' + osmTag + '](' + b.south + ',' + b.west + ',' + b.north + ',' + b.east + '););out center;';
+
+  const runBtn = document.getElementById('btnRunSearch');
+  runBtn.textContent = '⏳ در حال اتصال به سرورهای Overpass...';
+  runBtn.disabled = true;
+
+  let data = null;
+  let lastError = '';
+  for (const server of OVERPASS_SERVERS){
+    try{
+      const res = await fetch(server, {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: 'data=' + encodeURIComponent(query)
+      });
+      if (res.ok){ data = await res.json(); break; }
+      lastError = server + ' -> HTTP ' + res.status;
+    }catch(err){ lastError = server + ' -> ' + err.message; console.warn(lastError); }
+  }
+
+  runBtn.textContent = '🔍 اجرای جستجو در محدوده رسم‌شده';
+  runBtn.disabled = false;
+
+  if (!data){
+    alert('🛑 اتصال به هیچ‌یک از سرورهای Overpass برقرار نشد (ممکن است در شبکه شما مسدود باشند). جزئیات: ' + lastError);
+    return;
+  }
+
+  processFeatureResults(data.elements || [], b, lengthFilter, widthFilter, heightFilter, filterMode);
+}
+
+function processFeatureResults(elements, bbox, lengthFilter, widthFilter, heightFilter, filterMode){
+  featureLeafletGroup.clearLayers();
+  featureCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
+  featureCesiumEntities = [];
+  featureResultsData = [];
+
+  let counter = 0;
+  elements.forEach(el=>{
+    const tags = el.tags || {};
+    let lat, lon;
+    if (el.center){ lat = el.center.lat; lon = el.center.lon; }
+    else if (el.lat !== undefined && el.lon !== undefined){ lat = el.lat; lon = el.lon; }
+    else { return; }
+
+    if (!(bbox.south <= lat && lat <= bbox.north && bbox.west <= lon && lon <= bbox.east)) return;
+
+    const lengthVal = extractNumber(tags.length);
+    const widthVal = extractNumber(tags.width);
+    const heightVal = extractNumber(tags.height || tags['building:levels']);
+
+    const checks = [];
+    if (lengthFilter > 0) checks.push(lengthVal !== null && lengthVal <= lengthFilter);
+    if (widthFilter > 0) checks.push(widthVal !== null && widthVal <= widthFilter);
+    if (heightFilter > 0) checks.push(heightVal !== null && heightVal <= heightFilter);
+    if (checks.length){
+      const passed = filterMode === 'and' ? checks.every(Boolean) : checks.some(Boolean);
+      if (!passed) return;
+    }
+
+    counter++;
+    const nameFa = tags['name:fa'] || tags.name || tags.bridge || tags.highway || ('عارضه ' + counter);
+    const lengthDisp = tags.length || 'نامشخص';
+    const widthDisp = tags.width || 'نامشخص';
+    const heightDisp = tags.height || tags['building:levels'] || 'نامشخص';
+    const dimStr = 'طول (' + lengthDisp + ') | عرض (' + widthDisp + ') | ارتفاع (' + heightDisp + ')';
+    const ddStr = lat.toFixed(6) + ', ' + lon.toFixed(6);
+    const dmsStr = ddToDms(lat, true) + ', ' + ddToDms(lon, false);
+
+    featureResultsData.push({ 'ردیف': counter, 'نام یا طبقه عارضه': nameFa, 'پارامترهای سازه': dimStr, 'مختصات اعشاری DD': ddStr, 'مختصات درجه دقیقه ثانیه DMS': dmsStr });
+
+    const marker = L.circleMarker([lat, lon], {radius:7, color:'#fff', weight:2, fillColor:'#2563eb', fillOpacity:.9})
+      .bindPopup('<b>' + nameFa + '</b><br>' + dimStr + '<br><span class="mono">' + ddStr + '</span>');
+    featureLeafletGroup.addLayer(marker);
+
+    const ent = cesiumViewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon, lat),
+      point: { pixelSize: 9, color: Cesium.Color.fromCssColorString('#2563eb'), outlineColor: Cesium.Color.WHITE, outlineWidth: 2 },
+      description: nameFa + ' — ' + dimStr
+    });
+    featureCesiumEntities.push(ent);
+
+    addResult(nameFa, ddStr, ()=>{
+      leafletMap.panTo([lat, lon]); marker.openPopup();
+      cesiumViewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon, lat, 5000), duration: 1 });
+    });
+  });
+
+  if (counter === 0){
+    alert('هیچ عارضه‌ای در این محدوده با فیلترهای انتخابی یافت نشد. کلمه کلیدی، محدوده یا فیلتر ابعاد را تغییر دهید.');
+  } else {
+    document.getElementById('btnExportExcel').style.display = 'block';
+  }
+}
+document.getElementById('btnRunSearch').addEventListener('click', runFeatureSearch);
+
+document.getElementById('btnExportExcel').addEventListener('click', ()=>{
+  if (!featureResultsData.length) return;
+  const ws = XLSX.utils.json_to_sheet(featureResultsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'گزارش عوارض');
+  XLSX.writeFile(wb, 'GeoSync_Feature_Report.xlsx');
+});
+
+document.getElementById('btnClearSearch').addEventListener('click', ()=>{
+  featureLeafletGroup.clearLayers();
+  featureCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
+  featureCesiumEntities = [];
+  featureResultsData = [];
+  searchDrawnItems.clearLayers();
+  searchBBox = null;
+  document.getElementById('btnExportExcel').style.display = 'none';
+});
+
+/* =========================================================
+   8) CLEAR (پاک‌سازی ترسیمات دستی / نشانگر / اندازه‌گیری / بافر / داده سفارشی)
+   ========================================================= */
 document.getElementById('btnClear').addEventListener('click', ()=>{
   leafletMarkers.forEach(m=>leafletMap.removeLayer(m));
   leafletMarkers = [];
   if (tempLeafletLayer){ leafletMap.removeLayer(tempLeafletLayer); tempLeafletLayer = null; }
-  leafletMap.eachLayer(l=>{ if (l instanceof L.Polyline || l instanceof L.Polygon) leafletMap.removeLayer(l); });
+  leafletMap.eachLayer(l=>{ if (l instanceof L.Polyline || l instanceof L.Polygon) { if (l !== leafletTileLayer) leafletMap.removeLayer(l); } });
   cesiumEntities.forEach(e=>cesiumViewer.entities.remove(e));
   cesiumEntities = [];
   if (uploadedLeafletLayer){ leafletMap.removeLayer(uploadedLeafletLayer); uploadedLeafletLayer = null; }
@@ -968,7 +1285,7 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
 });
 
 /* =========================================================
-   8) NAVIGATION CLUSTER
+   9) NAVIGATION CLUSTER
    ========================================================= */
 document.getElementById('navHome').addEventListener('click', ()=>{
   leafletMap.setView([35.6892, 51.3890], 6);
@@ -984,7 +1301,7 @@ document.getElementById('navNorth').addEventListener('click', ()=>{
 });
 
 /* =========================================================
-   9) VIEW MODE (split / 2D only / 3D only)
+   10) VIEW MODE (split / 2D only / 3D only)
    ========================================================= */
 const mapsRow = document.getElementById('mapsRow');
 const modeButtons = { split: document.getElementById('viewSplit'), d2: document.getElementById('view2d'), d3: document.getElementById('view3d') };
@@ -1002,7 +1319,6 @@ modeButtons.d3.addEventListener('click', ()=>setViewMode('3d'));
 
 window.addEventListener('resize', ()=>{ leafletMap.invalidateSize(); cesiumViewer.resize(); });
 
-/* mouse move coordinate readout (2D pane) */
 leafletMap.on('mousemove', (e)=>{
   document.getElementById('stLat').textContent = e.latlng.lat.toFixed(5);
   document.getElementById('stLon').textContent = e.latlng.lng.toFixed(5);
@@ -1012,3 +1328,4 @@ leafletMap.on('mousemove', (e)=>{
 </script>
 </body>
 </html>
+
