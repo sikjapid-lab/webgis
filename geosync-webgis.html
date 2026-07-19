@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ژئوسینک — محیط وب GIS دوبعدی و سه‌بعدی</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Vazirmatn:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:#080c11;
+    --panel:#0f151d;
+    --panel-2:#141c26;
+    --line:#1f2b38;
+    --text:#e7eef5;
+    --muted:#7f92a6;
+    --cyan:#2dd4e8;
+    --cyan-dim:#1a7d8a;
+    --amber:#f5a623;
+    --danger:#ef5b5b;
+    --radius:10px;
+    font-size:15px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Vazirmatn','JetBrains Mono',sans-serif;
+    overflow:hidden;
+  }
+  .en, .mono{ font-family:'JetBrains Mono', monospace; direction:ltr; unicode-bidi:isolate; }
+
+  #app{
+    display:grid;
+    grid-template-rows:56px 1fr 30px;
+    height:100vh;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:0 16px;
+    background:linear-gradient(180deg, var(--panel), var(--panel) 90%, rgba(0,0,0,0));
+    border-bottom:1px solid var(--line);
+    z-index:50;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding-left:14px;
+    border-left:1px solid var(--line);
+  }
+  .brand svg{ display:block; }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.1; }
+  .brand-text b{
+    font-family:'Rajdhani',sans-serif;
+    font-size:18px;
+    letter-spacing:.5px;
+    font-weight:700;
+    color:var(--text);
+  }
+  .brand-text span{ font-size:10px; color:var(--muted); letter-spacing:.5px; }
+
+  .toolgroup{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:4px;
+  }
+  .tbtn{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    padding:8px 12px;
+    border-radius:7px;
+    cursor:pointer;
+    font-family:inherit;
+    font-size:13px;
+    font-weight:500;
+    white-space:nowrap;
+    transition:background .15s, color .15s;
+  }
+  .tbtn:hover{ background:#1a2531; color:var(--text); }
+  .tbtn.active{ background:var(--cyan); color:#03181c; }
+  .tbtn svg{ width:16px; height:16px; flex:none; }
+
+  .search-wrap{
+    position:relative;
+    flex:1;
+    max-width:420px;
+  }
+  .search-wrap input{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:9px 40px 9px 12px;
+    color:var(--text);
+    font-family:inherit;
+    font-size:13px;
+    outline:none;
+  }
+  .search-wrap input:focus{ border-color:var(--cyan-dim); }
+  .search-wrap svg{
+    position:absolute;
+    right:12px; top:50%; transform:translateY(-50%);
+    width:15px; height:15px; color:var(--muted);
+    pointer-events:none;
+  }
+  #searchResults{
+    position:absolute;
+    top:calc(100% + 6px);
+    right:0; left:0;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    max-height:260px;
+    overflow:auto;
+    display:none;
+    z-index:80;
+  }
+  #searchResults div{
+    padding:9px 12px;
+    font-size:12.5px;
+    cursor:pointer;
+    border-bottom:1px solid var(--line);
+    color:#c7d3de;
+  }
+  #searchResults div:hover{ background:#1a2531; color:var(--text); }
+
+  .header-spacer{ flex:1; }
+
+  /* ---------- MAP AREA ---------- */
+  #mapsRow{
+    position:relative;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    height:100%;
+    min-height:0;
+  }
+  #mapsRow.mode-2d{ grid-template-columns:1fr 0; }
+  #mapsRow.mode-3d{ grid-template-columns:0 1fr; }
+
+  #leafletContainer, #cesiumContainer{
+    position:relative;
+    height:100%;
+    width:100%;
+    min-width:0;
+    overflow:hidden;
+  }
+  #leafletContainer{ border-left:2px solid var(--line); }
+
+  .pane-tag{
+    position:absolute;
+    top:10px; right:10px;
+    z-index:400;
+    background:rgba(8,12,17,.75);
+    backdrop-filter:blur(4px);
+    border:1px solid var(--line);
+    color:var(--cyan);
+    font-family:'Rajdhani',sans-serif;
+    font-weight:700;
+    letter-spacing:1px;
+    font-size:11px;
+    padding:4px 10px;
+    border-radius:6px;
+    pointer-events:none;
+  }
+  #cesiumContainer .pane-tag{ right:auto; left:10px; color:var(--amber); }
+
+  /* ---------- side floating panels ---------- */
+  .float-panel{
+    position:absolute;
+    z-index:60;
+    background:rgba(15,21,29,.92);
+    backdrop-filter:blur(6px);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    color:var(--text);
+    font-size:12.5px;
+  }
+  #layersPanel{
+    top:10px; left:10px;
+    width:190px;
+    padding:10px;
+    display:none;
+  }
+  #layersPanel h4, #resultsPanel h4{
+    margin:0 0 8px;
+    font-family:'Rajdhani',sans-serif;
+    font-size:12px;
+    letter-spacing:.8px;
+    color:var(--muted);
+    text-transform:uppercase;
+  }
+  .layer-opt{
+    display:flex; align-items:center; gap:8px;
+    padding:7px 8px; border-radius:6px; cursor:pointer;
+  }
+  .layer-opt:hover{ background:#1a2531; }
+  .layer-opt.sel{ background:rgba(45,212,232,.12); color:var(--cyan); }
+  .layer-opt .swatch{ width:14px; height:14px; border-radius:3px; flex:none; }
+
+  #resultsPanel{
+    bottom:14px; left:10px;
+    width:260px;
+    max-height:220px;
+    padding:10px;
+    overflow:auto;
+    display:none;
+  }
+  .result-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:6px 8px; border-radius:6px; margin-bottom:4px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+  }
+  .result-row .val{ font-family:'JetBrains Mono',monospace; color:var(--cyan); direction:ltr; }
+  .result-row button{
+    background:none; border:none; color:var(--danger); cursor:pointer; font-size:14px;
+    padding:0 4px;
+  }
+
+  #navCluster{
+    position:absolute;
+    bottom:14px; right:10px;
+    z-index:60;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .navbtn{
+    width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(15,21,29,.92);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--muted);
+    cursor:pointer;
+  }
+  .navbtn:hover{ color:var(--cyan); border-color:var(--cyan-dim); }
+  .navbtn svg{ width:16px; height:16px; }
+
+  #crosshair-hint{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    z-index:60; background:rgba(245,166,35,.14); border:1px solid var(--amber);
+    color:var(--amber); font-size:12px; padding:6px 14px; border-radius:20px;
+    display:none; white-space:nowrap;
+  }
+
+  /* ---------- STATUS BAR ---------- */
+  #statusbar{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    padding:0 16px;
+    background:var(--panel);
+    border-top:1px solid var(--line);
+    font-family:'JetBrains Mono',monospace;
+    font-size:11.5px;
+    color:var(--muted);
+    direction:ltr;
+    justify-content:flex-start;
+  }
+  #statusbar b{ color:var(--cyan); font-weight:600; }
+  .status-sep{ width:1px; height:14px; background:var(--line); }
+  #syncDot{ width:7px; height:7px; border-radius:50%; background:var(--cyan); box-shadow:0 0 6px var(--cyan); display:inline-block; margin-left:6px;}
+
+  /* cesium credit cleanup */
+  .cesium-viewer-bottom{ display:none !important; }
+  .cesium-widget-credits{ display:none !important; }
+
+  ::-webkit-scrollbar{ width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb{ background:#26333f; border-radius:3px; }
+
+  @media (max-width:760px){
+    .brand-text{ display:none; }
+    .search-wrap{ max-width:150px; }
+    .tbtn span{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== HEADER ===================== -->
+  <header>
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="#2dd4e8" stroke-width="1.4"/>
+        <ellipse cx="12" cy="12" rx="9" ry="3.6" stroke="#2dd4e8" stroke-width="1" opacity=".6"/>
+        <path d="M12 3v18M3 12h18" stroke="#2dd4e8" stroke-width="1" opacity=".5"/>
+        <circle cx="12" cy="12" r="1.6" fill="#f5a623"/>
+      </svg>
+      <div class="brand-text">
+        <b>ژئوسینک</b>
+        <span>GEOSYNC · WEB GIS</span>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="جست‌وجوی مکان، شهر یا مختصات...">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <div id="searchResults"></div>
+    </div>
+
+    <div class="toolgroup">
+      <button class="tbtn" id="btnLayers" title="لایه‌های نقشه">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span>لایه‌ها</span>
+      </button>
+      <button class="tbtn" id="btnMeasureDist" title="اندازه‌گیری فاصله">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21 21 3"/><path d="M7 17l2 2M11 13l2 2M15 9l2 2"/></svg>
+        <span>فاصله</span>
+      </button>
+      <button class="tbtn" id="btnMeasureArea" title="اندازه‌گیری مساحت">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l8-3 8 3-2 12-6 3-6-3-2-12Z"/></svg>
+        <span>مساحت</span>
+      </button>
+      <button class="tbtn" id="btnMarker" title="افزودن نشانگر">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+        <span>نشانگر</span>
+      </button>
+      <button class="tbtn" id="btnClear" title="پاک‌سازی">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+        <span>پاک‌سازی</span>
+      </button>
+    </div>
+
+    <div class="header-spacer"></div>
+
+    <div class="toolgroup">
+      <button class="tbtn active" id="viewSplit">دو‌بعدی + سه‌بعدی</button>
+      <button class="tbtn" id="view2d">فقط دوبعدی</button>
+      <button class="tbtn" id="view3d">فقط سه‌بعدی</button>
+    </div>
+  </header>
+
+  <!-- ===================== MAPS ===================== -->
+  <div id="mapsRow" class="mode-split">
+    <div id="leafletContainer">
+      <div class="pane-tag">نمای ۲بعدی</div>
+
+      <div id="layersPanel" class="float-panel">
+        <h4>پایه‌های نقشه</h4>
+        <div class="layer-opt sel" data-layer="osm"><span class="swatch" style="background:#4b8f4b"></span> خیابانی (OSM)</div>
+        <div class="layer-opt" data-layer="sat"><span class="swatch" style="background:#3a4a5c"></span> تصویر ماهواره‌ای</div>
+        <div class="layer-opt" data-layer="topo"><span class="swatch" style="background:#b08c4b"></span> توپوگرافی</div>
+      </div>
+
+      <div id="resultsPanel" class="float-panel">
+        <h4>نتایج تحلیل</h4>
+        <div id="resultsList"></div>
+      </div>
+    </div>
+
+    <div id="cesiumContainer">
+      <div class="pane-tag">نمای ۳بعدی</div>
+    </div>
+
+    <div id="crosshair-hint">حالت ترسیم فعال است — روی نقشه دوبعدی کلیک کنید، برای پایان دو‌بار کلیک کنید</div>
+
+    <div id="navCluster">
+      <div class="navbtn" id="navHome" title="بازگشت به دید کلی">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>
+      </div>
+      <div class="navbtn" id="navPlus" title="بزرگ‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+      <div class="navbtn" id="navMinus" title="کوچک‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></div>
+      <div class="navbtn" id="navNorth" title="شمال / بازنشانی چرخش"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6M12 16v6M4 12l8-3 8 3-8 3-8-3Z"/></svg></div>
+    </div>
+  </div>
+
+  <!-- ===================== STATUS BAR ===================== -->
+  <div id="statusbar">
+    <span>LAT <b id="stLat">--</b></span>
+    <span>LON <b id="stLon">--</b></span>
+    <div class="status-sep"></div>
+    <span>ZOOM <b id="stZoom">--</b></span>
+    <div class="status-sep"></div>
+    <span>SCALE <b id="stScale">--</b></span>
+    <div class="status-sep"></div>
+    <span>MODE <b id="stMode">SPLIT</b></span>
+    <div class="header-spacer"></div>
+    <span><span id="syncDot"></span>SYNC ACTIVE — 2D ⇄ 3D</span>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+<script>
+(function(){
+
+/* =========================================================
+   1) TILE SOURCES (100% free, no API key / no Cesium ion)
+   ========================================================= */
+const SOURCES = {
+  osm:  { leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© OpenStreetMap contributors'}},
+          cesium:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
+  sat:  { leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19, attribution:'© Esri, Maxar, Earthstar Geographics'}},
+          cesium:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'} },
+  topo: { leaflet:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)'}},
+          cesium:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} }
+};
+let currentSource = 'osm';
+
+/* =========================================================
+   2) LEAFLET (2D)
+   ========================================================= */
+const leafletMap = L.map('leafletContainer', { zoomControl:false, attributionControl:true })
+  .setView([35.6892, 51.3890], 6); // تهران - نقطه شروع
+
+let leafletTileLayer = L.tileLayer(SOURCES.osm.leaflet.url, SOURCES.osm.leaflet.opts).addTo(leafletMap);
+
+function setLeafletSource(key){
+  leafletMap.removeLayer(leafletTileLayer);
+  leafletTileLayer = L.tileLayer(SOURCES[key].leaflet.url, SOURCES[key].leaflet.opts).addTo(leafletMap);
+}
+
+/* =========================================================
+   3) CESIUM (3D) — no Ion token required
+   ========================================================= */
+Cesium.Ion.defaultAccessToken = undefined;
+
+const cesiumViewer = new Cesium.Viewer('cesiumContainer', {
+  imageryProvider: false,
+  baseLayerPicker: false,
+  geocoder: false,
+  homeButton: false,
+  sceneModePicker: false,
+  navigationHelpButton: false,
+  animation: false,
+  timeline: false,
+  fullscreenButton: false,
+  infoBox: false,
+  selectionIndicator: false,
+  terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+  contextOptions: { webgl: { alpha: false } }
+});
+cesiumViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a1520');
+cesiumViewer.scene.skyAtmosphere.show = true;
+cesiumViewer.scene.fog.enabled = true;
+cesiumViewer._cesiumWidget._creditContainer.style.display = 'none';
+
+let cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
+  new Cesium.UrlTemplateImageryProvider({ url: SOURCES.osm.cesium.url, subdomains: SOURCES.osm.cesium.subdomains, credit:'OSM' })
+);
+
+function setCesiumSource(key){
+  cesiumViewer.imageryLayers.remove(cesiumImageryLayer, true);
+  cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
+    new Cesium.UrlTemplateImageryProvider({ url: SOURCES[key].cesium.url, subdomains: SOURCES[key].cesium.subdomains || undefined })
+  );
+}
+
+cesiumViewer.camera.flyTo({
+  destination: Cesium.Cartesian3.fromDegrees(51.3890, 35.6892, 1800000),
+  duration: 0
+});
+
+/* =========================================================
+   4) SYNC ENGINE — 2D ⇄ 3D camera
+   ========================================================= */
+let syncingFromLeaflet = false;
+let syncingFromCesium = false;
+
+function heightFromZoom(zoom){ return 591657550.5 / Math.pow(2, zoom - 1); } // approx meters
+function zoomFromHeight(h){
+  let z = Math.log2(591657550.5 / h) + 1;
+  return Math.max(2, Math.min(19, z));
+}
+
+leafletMap.on('moveend', function(){
+  if (syncingFromCesium) return;
+  syncingFromLeaflet = true;
+  const c = leafletMap.getCenter();
+  const h = heightFromZoom(leafletMap.getZoom());
+  cesiumViewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(c.lng, c.lat, h),
+    duration: 0.4,
+    complete: ()=>{ syncingFromLeaflet = false; }
+  });
+  setTimeout(()=>{ syncingFromLeaflet = false; }, 500);
+  updateStatus(c.lat, c.lng, leafletMap.getZoom());
+});
+
+cesiumViewer.camera.moveEnd.addEventListener(function(){
+  if (syncingFromLeaflet) return;
+  const carto = cesiumViewer.camera.positionCartographic;
+  const lat = Cesium.Math.toDegrees(carto.latitude);
+  const lon = Cesium.Math.toDegrees(carto.longitude);
+  const zoom = zoomFromHeight(carto.height);
+  syncingFromCesium = true;
+  leafletMap.setView([lat, lon], Math.round(zoom), { animate:false });
+  syncingFromCesium = false;
+  updateStatus(lat, lon, Math.round(zoom));
+});
+
+function updateStatus(lat, lon, zoom){
+  document.getElementById('stLat').textContent = lat.toFixed(5);
+  document.getElementById('stLon').textContent = lon.toFixed(5);
+  document.getElementById('stZoom').textContent = zoom;
+  const scale = Math.round(591657550.5 / Math.pow(2, zoom-1) / 0.28); // rough map-scale estimate
+  document.getElementById('stScale').textContent = '1:' + scale.toLocaleString('en-US');
+}
+updateStatus(35.6892, 51.3890, 6);
+
+/* =========================================================
+   5) LAYER SWITCHER PANEL
+   ========================================================= */
+const btnLayers = document.getElementById('btnLayers');
+const layersPanel = document.getElementById('layersPanel');
+btnLayers.addEventListener('click', ()=>{
+  layersPanel.style.display = layersPanel.style.display === 'block' ? 'none' : 'block';
+});
+document.querySelectorAll('.layer-opt').forEach(opt=>{
+  opt.addEventListener('click', ()=>{
+    document.querySelectorAll('.layer-opt').forEach(o=>o.classList.remove('sel'));
+    opt.classList.add('sel');
+    currentSource = opt.dataset.layer;
+    setLeafletSource(currentSource);
+    setCesiumSource(currentSource);
+  });
+});
+
+/* =========================================================
+   6) SEARCH (Nominatim — free OSM geocoding)
+   ========================================================= */
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+let searchTimer = null;
+
+searchInput.addEventListener('input', ()=>{
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (q.length < 3){ searchResults.style.display='none'; return; }
+  searchTimer = setTimeout(async ()=>{
+    try{
+      const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&q=' + encodeURIComponent(q));
+      const data = await res.json();
+      searchResults.innerHTML = '';
+      if (!data.length){ searchResults.style.display='none'; return; }
+      data.forEach(item=>{
+        const div = document.createElement('div');
+        div.textContent = item.display_name;
+        div.addEventListener('click', ()=>{
+          const lat = parseFloat(item.lat), lon = parseFloat(item.lon);
+          leafletMap.setView([lat, lon], 13);
+          searchResults.style.display = 'none';
+          searchInput.value = item.display_name;
+          dropMarker(lat, lon, item.display_name.split(',')[0]);
+        });
+        searchResults.appendChild(div);
+      });
+      searchResults.style.display = 'block';
+    }catch(e){ console.error(e); }
+  }, 450);
+});
+document.addEventListener('click', (e)=>{
+  if (!searchResults.contains(e.target) && e.target !== searchInput) searchResults.style.display='none';
+});
+
+/* =========================================================
+   7) MARKERS / DRAWING / MEASUREMENT (synced 2D + 3D)
+   ========================================================= */
+let mode = null; // null | 'marker' | 'distance' | 'area'
+let drawPoints = [];
+let tempLeafletLayer = null;
+let leafletMarkers = [];
+let cesiumEntities = [];
+const resultsPanel = document.getElementById('resultsPanel');
+const resultsList = document.getElementById('resultsList');
+const hint = document.getElementById('crosshair-hint');
+let resultCounter = 0;
+
+function setMode(newMode){
+  mode = (mode === newMode) ? null : newMode;
+  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  drawPoints = [];
+  if (tempLeafletLayer){ leafletMap.removeLayer(tempLeafletLayer); tempLeafletLayer = null; }
+  hint.style.display = 'none';
+  if (mode === 'distance'){ document.getElementById('btnMeasureDist').classList.add('active'); hint.style.display='block'; hint.textContent='حالت اندازه‌گیری فاصله — روی نقشه دوبعدی کلیک کنید، برای پایان دو‌بار کلیک کنید'; }
+  if (mode === 'area'){ document.getElementById('btnMeasureArea').classList.add('active'); hint.style.display='block'; hint.textContent='حالت اندازه‌گیری مساحت — حداقل ۳ نقطه، برای پایان دو‌بار کلیک کنید'; }
+  if (mode === 'marker'){ document.getElementById('btnMarker').classList.add('active'); hint.style.display='block'; hint.textContent='حالت نشانگر — روی نقشه دوبعدی کلیک کنید'; }
+}
+document.getElementById('btnMeasureDist').addEventListener('click', ()=>setMode('distance'));
+document.getElementById('btnMeasureArea').addEventListener('click', ()=>setMode('area'));
+document.getElementById('btnMarker').addEventListener('click', ()=>setMode('marker'));
+
+function dropMarker(lat, lon, label){
+  const m = L.marker([lat, lon]).addTo(leafletMap).bindTooltip(label || 'نشانگر', {permanent:false});
+  leafletMarkers.push(m);
+  const ent = cesiumViewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lon, lat),
+    point: { pixelSize: 10, color: Cesium.Color.fromCssColorString('#f5a623'), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+    label: { text: label || '', font: '12px sans-serif', pixelOffset: new Cesium.Cartesian2(0,-18), fillColor: Cesium.Color.WHITE }
+  });
+  cesiumEntities.push(ent);
+}
+
+function addResult(label, value){
+  resultsPanel.style.display = 'block';
+  resultCounter++;
+  const id = 'res_' + resultCounter;
+  const row = document.createElement('div');
+  row.className = 'result-row';
+  row.id = id;
+  row.innerHTML = '<span>'+label+'</span><span class="val">'+value+'</span><button data-id="'+id+'">✕</button>';
+  resultsList.appendChild(row);
+  row.querySelector('button').addEventListener('click', ()=>row.remove());
+}
+
+leafletMap.on('click', function(e){
+  if (!mode) return;
+  const {lat, lng} = e.latlng;
+
+  if (mode === 'marker'){
+    dropMarker(lat, lng, 'نقطه دلخواه');
+    setMode('marker'); // toggles off after placing one point
+    return;
+  }
+
+  drawPoints.push([lat, lng]);
+  if (tempLeafletLayer) leafletMap.removeLayer(tempLeafletLayer);
+
+  if (mode === 'distance'){
+    tempLeafletLayer = L.polyline(drawPoints, {color:'#2dd4e8', weight:3}).addTo(leafletMap);
+  } else if (mode === 'area'){
+    tempLeafletLayer = L.polygon(drawPoints, {color:'#f5a623', weight:2, fillOpacity:.15}).addTo(leafletMap);
+  }
+});
+
+leafletMap.on('dblclick', function(e){
+  if (!mode || drawPoints.length < 2) return;
+  L.DomEvent.stop(e);
+
+  if (mode === 'distance'){
+    let meters = 0;
+    for (let i=1;i<drawPoints.length;i++){
+      meters += leafletMap.distance(drawPoints[i-1], drawPoints[i]);
+    }
+    const km = (meters/1000).toFixed(2);
+    addResult('فاصله خط', km + ' km');
+    syncShapeToCesium(drawPoints, 'polyline');
+  } else if (mode === 'area' && drawPoints.length >= 3){
+    const coordsGeo = drawPoints.map(p=>[p[1],p[0]]);
+    coordsGeo.push(coordsGeo[0]);
+    const poly = turf.polygon([coordsGeo]);
+    const areaM2 = turf.area(poly);
+    const areaKm2 = (areaM2/1e6).toFixed(3);
+    addResult('مساحت چندضلعی', areaKm2 + ' km²');
+    syncShapeToCesium(drawPoints, 'polygon');
+  }
+
+  drawPoints = [];
+  hint.style.display = 'none';
+  mode = null;
+  ['btnMeasureDist','btnMeasureArea'].forEach(id=>document.getElementById(id).classList.remove('active'));
+});
+
+function syncShapeToCesium(points, kind){
+  const positions = [];
+  points.forEach(p=> positions.push(p[1], p[0])); // lon,lat pairs
+  if (kind === 'polyline'){
+    const ent = cesiumViewer.entities.add({
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArray(positions),
+        width: 4,
+        material: Cesium.Color.fromCssColorString('#2dd4e8'),
+        clampToGround: true
+      }
+    });
+    cesiumEntities.push(ent);
+  } else {
+    const ent = cesiumViewer.entities.add({
+      polygon: {
+        hierarchy: Cesium.Cartesian3.fromDegreesArray(positions),
+        material: Cesium.Color.fromCssColorString('#f5a623').withAlpha(.3),
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString('#f5a623')
+      }
+    });
+    cesiumEntities.push(ent);
+  }
+}
+
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  leafletMarkers.forEach(m=>leafletMap.removeLayer(m));
+  leafletMarkers = [];
+  if (tempLeafletLayer){ leafletMap.removeLayer(tempLeafletLayer); tempLeafletLayer = null; }
+  leafletMap.eachLayer(l=>{ if (l instanceof L.Polyline || l instanceof L.Polygon) leafletMap.removeLayer(l); });
+  cesiumEntities.forEach(e=>cesiumViewer.entities.remove(e));
+  cesiumEntities = [];
+  resultsList.innerHTML = '';
+  resultsPanel.style.display = 'none';
+  drawPoints = [];
+  mode = null;
+  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  hint.style.display = 'none';
+});
+
+/* =========================================================
+   8) NAVIGATION CLUSTER
+   ========================================================= */
+document.getElementById('navHome').addEventListener('click', ()=>{
+  leafletMap.setView([35.6892, 51.3890], 6);
+});
+document.getElementById('navPlus').addEventListener('click', ()=> leafletMap.zoomIn());
+document.getElementById('navMinus').addEventListener('click', ()=> leafletMap.zoomOut());
+document.getElementById('navNorth').addEventListener('click', ()=>{
+  cesiumViewer.camera.flyTo({
+    destination: cesiumViewer.camera.position,
+    orientation: { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
+    duration: 0.6
+  });
+});
+
+/* =========================================================
+   9) VIEW MODE (split / 2D only / 3D only)
+   ========================================================= */
+const mapsRow = document.getElementById('mapsRow');
+const modeButtons = { split: document.getElementById('viewSplit'), d2: document.getElementById('view2d'), d3: document.getElementById('view3d') };
+function setViewMode(m){
+  mapsRow.classList.remove('mode-split','mode-2d','mode-3d');
+  Object.values(modeButtons).forEach(b=>b.classList.remove('active'));
+  if (m==='split'){ mapsRow.classList.add('mode-split'); modeButtons.split.classList.add('active'); document.getElementById('stMode').textContent='SPLIT'; }
+  if (m==='2d'){ mapsRow.classList.add('mode-2d'); modeButtons.d2.classList.add('active'); document.getElementById('stMode').textContent='2D'; }
+  if (m==='3d'){ mapsRow.classList.add('mode-3d'); modeButtons.d3.classList.add('active'); document.getElementById('stMode').textContent='3D'; }
+  setTimeout(()=>{ leafletMap.invalidateSize(); cesiumViewer.resize(); }, 260);
+}
+modeButtons.split.addEventListener('click', ()=>setViewMode('split'));
+modeButtons.d2.addEventListener('click', ()=>setViewMode('2d'));
+modeButtons.d3.addEventListener('click', ()=>setViewMode('3d'));
+
+window.addEventListener('resize', ()=>{ leafletMap.invalidateSize(); cesiumViewer.resize(); });
+
+/* mouse move coordinate readout (2D pane) */
+leafletMap.on('mousemove', (e)=>{
+  document.getElementById('stLat').textContent = e.latlng.lat.toFixed(5);
+  document.getElementById('stLon').textContent = e.latlng.lng.toFixed(5);
+});
+
+})();
+</script>
+</body>
+</html>
