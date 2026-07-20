@@ -372,6 +372,15 @@
     background:rgba(8,12,17,.92); color:var(--muted); font-size:11px; text-align:center;
   }
   .select-group-label{ font-weight:700; color:var(--cyan); font-size:10.5px; padding:6px 4px 2px; }
+
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:8px; }
+  .panel-head-btns{ display:flex; gap:6px; flex:none; }
+  .panel-head-btns button{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
+    font-family:inherit; font-size:10.5px; padding:4px 8px; border-radius:6px; cursor:pointer; white-space:nowrap;
+  }
+  .panel-head-btns button:hover{ border-color:var(--cyan-dim); color:var(--cyan); }
+  .panel-head-btns #btnResultsClose{ padding:4px 8px; font-size:12px; }
   .result-row .rtext{ font-size:11.5px; line-height:1.5; }
   .result-row .val{ font-family:'JetBrains Mono',monospace; color:var(--cyan); direction:ltr; font-size:11px; }
   .result-row button{
@@ -494,9 +503,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l8-3 8 3-2 12-6 3-6-3-2-12Z"/></svg>
         <span>مساحت</span>
       </button>
-      <button class="tbtn" id="btnBuffer" title="بافر تحلیلی">
+      <button class="tbtn" id="btnBuffer" title="بافر نقطه‌ای — کلیک روی نقشه">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>
-        <span>بافر</span>
+        <span>بافر نقطه</span>
+      </button>
+      <button class="tbtn" id="btnBufferLine" title="بافر خطی — چند نقطه بزنید و دوبار کلیک کنید تا پایان یابد">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17 10 8 14 13 21 5" stroke-dasharray="0"/><path d="M3 17 10 8 14 13 21 5" stroke-opacity=".3" stroke-width="7"/></svg>
+        <span>بافر خط</span>
       </button>
       <button class="tbtn" id="btnMarker" title="افزودن نشانگر">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
@@ -529,13 +542,25 @@
         <label class="overlay-opt"><input type="checkbox" id="ovRain"> رادار بارش زنده (RainViewer)</label>
         <div class="credit-note">داده رادار: © RainViewer.com</div>
 
+        <h4>ردیابی زنده</h4>
+        <label class="overlay-opt"><input type="checkbox" id="ovFlights"> پروازهای زنده (ADS-B — OpenSky)</label>
+        <div class="credit-note">داده پرواز: © The OpenSky Network — رایگان و بدون کلید، بروزرسانی هر ۱۵ ثانیه در محدوده دید نقشه</div>
+        <label class="overlay-opt"><input type="checkbox" id="ovShips"> شناورهای زنده (AIS — aisstream.io)</label>
+        <div class="credit-note">داده AIS: © aisstream.io — نیازمند کلید رایگان در CONFIG.AISSTREAM_API_KEY</div>
+
         <h4>داده سفارشی کاربر</h4>
         <button class="panel-btn" id="btnUpload">بارگذاری GeoJSON / KML / Shapefile(zip)</button>
         <input type="file" id="fileUpload" accept=".geojson,.json,.kml,.zip" style="display:none">
       </div>
 
       <div id="resultsPanel" class="float-panel">
-        <h4>نتایج تحلیل و جستجو</h4>
+        <div class="panel-head">
+          <h4 style="margin:0">نتایج تحلیل و جستجو</h4>
+          <div class="panel-head-btns">
+            <button id="btnResultsClearAll" title="پاک‌سازی همه نتایج">پاک‌سازی همه</button>
+            <button id="btnResultsClose" title="بستن این پنل">✕</button>
+          </div>
+        </div>
         <div id="resultsList"></div>
       </div>
 
@@ -643,7 +668,8 @@ const CONFIG = {
   PLANET_API_KEY: '',           // https://www.planet.com/account
   PLANET_MOSAIC: 'global_monthly_2024_01_mosaic',
   SENTINEL_HUB_INSTANCE_ID: '', // https://apps.sentinel-hub.com  (اختیاری - نسخه رایگان EOX جایگزین پیش‌فرض است)
-  RSS2JSON_API_KEY: ''          // https://rss2json.com  (اختیاری - بدون کلید هم با محدودیت نرخ کار می‌کند)
+  RSS2JSON_API_KEY: '',         // https://rss2json.com  (اختیاری - بدون کلید هم با محدودیت نرخ کار می‌کند)
+  AISSTREAM_API_KEY: ''         // https://aisstream.io  (رایگان با ثبت‌نام؛ برای نمایش زنده شناورهای AIS لازم است)
 };
 
 /* =========================================================
@@ -991,7 +1017,7 @@ document.addEventListener('click', (e)=>{
 /* =========================================================
    7) MARKERS / DRAWING / MEASUREMENT / BUFFER (synced 2D + 3D)
    ========================================================= */
-let mode = null; // null | 'marker' | 'distance' | 'area'
+let mode = null; // null | 'marker' | 'distance' | 'area' | 'bufferLine'
 let bufferMode = false;
 let drawPoints = [];
 let tempLeafletLayer = null;
@@ -1004,7 +1030,7 @@ let resultCounter = 0;
 
 function setMode(newMode){
   mode = (mode === newMode) ? null : newMode;
-  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  ['btnMeasureDist','btnMeasureArea','btnMarker','btnBufferLine'].forEach(id=>document.getElementById(id).classList.remove('active'));
   bufferMode = false;
   document.getElementById('btnBuffer').classList.remove('active');
   drawPoints = [];
@@ -1013,18 +1039,20 @@ function setMode(newMode){
   if (mode === 'distance'){ document.getElementById('btnMeasureDist').classList.add('active'); hint.style.display='block'; hint.textContent='حالت اندازه‌گیری فاصله — روی نقشه دوبعدی کلیک کنید، برای پایان دو‌بار کلیک کنید'; }
   if (mode === 'area'){ document.getElementById('btnMeasureArea').classList.add('active'); hint.style.display='block'; hint.textContent='حالت اندازه‌گیری مساحت — حداقل ۳ نقطه، برای پایان دو‌بار کلیک کنید'; }
   if (mode === 'marker'){ document.getElementById('btnMarker').classList.add('active'); hint.style.display='block'; hint.textContent='حالت نشانگر — روی نقشه دوبعدی کلیک کنید'; }
+  if (mode === 'bufferLine'){ document.getElementById('btnBufferLine').classList.add('active'); hint.style.display='block'; hint.textContent='حالت بافر خطی — حداقل ۲ نقطه روی نقشه دوبعدی بزنید، برای پایان دو‌بار کلیک کنید'; }
 }
 document.getElementById('btnMeasureDist').addEventListener('click', ()=>setMode('distance'));
 document.getElementById('btnMeasureArea').addEventListener('click', ()=>setMode('area'));
 document.getElementById('btnMarker').addEventListener('click', ()=>setMode('marker'));
+document.getElementById('btnBufferLine').addEventListener('click', ()=>setMode('bufferLine'));
 
 document.getElementById('btnBuffer').addEventListener('click', ()=>{
   bufferMode = !bufferMode;
   mode = null;
-  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  ['btnMeasureDist','btnMeasureArea','btnMarker','btnBufferLine'].forEach(id=>document.getElementById(id).classList.remove('active'));
   document.getElementById('btnBuffer').classList.toggle('active', bufferMode);
   hint.style.display = bufferMode ? 'block' : 'none';
-  hint.textContent = 'حالت بافر تحلیلی — روی نقشه دوبعدی کلیک کنید و شعاع را به کیلومتر وارد کنید';
+  hint.textContent = 'حالت بافر نقطه‌ای — روی نقشه دوبعدی کلیک کنید و شعاع را به کیلومتر وارد کنید';
 });
 
 function dropMarker(lat, lon, label){
@@ -1051,6 +1079,13 @@ function addResult(label, value, onClick){
   row.querySelector('button').addEventListener('click', ()=>row.remove());
   return row;
 }
+document.getElementById('btnResultsClearAll').addEventListener('click', ()=>{
+  resultsList.innerHTML = '';
+  resultsPanel.style.display = 'none';
+});
+document.getElementById('btnResultsClose').addEventListener('click', ()=>{
+  resultsPanel.style.display = 'none';
+});
 
 function drawBuffer(lat, lng, radiusKm){
   const pt = turf.point([lng, lat]);
@@ -1065,12 +1100,36 @@ function drawBuffer(lat, lng, radiusKm){
   });
   cesiumEntities.push(ent);
   const areaKm2 = (turf.area(buffered)/1e6).toFixed(2);
-  addResult('بافر '+radiusKm+' کیلومتری', areaKm2 + ' km²');
+  addResult('بافر نقطه‌ای '+radiusKm+' کیلومتری', areaKm2 + ' km²');
+}
+
+function drawBufferOnLine(points, radiusKm){
+  const coordsGeo = points.map(p=>[p[1], p[0]]);
+  const line = turf.lineString(coordsGeo);
+  const buffered = turf.buffer(line, radiusKm, {units:'kilometers'});
+  // turf.buffer روی یک خط می‌تواند چندضلعی یا چندضلعی چندبخشی برگرداند
+  const polygons = buffered.geometry.type === 'MultiPolygon' ? buffered.geometry.coordinates : [buffered.geometry.coordinates];
+  const pos = [];
+  polygons.forEach(poly=>{
+    const ring = poly[0];
+    const latlngs = ring.map(c=>[c[1], c[0]]);
+    const layer = L.polygon(latlngs, {color:'#f5a623', weight:2, fillColor:'#f5a623', fillOpacity:.15}).addTo(leafletMap);
+    leafletMarkers.push(layer);
+    ring.forEach(c=>pos.push(c[0], c[1]));
+    const ent = cesiumViewer.entities.add({
+      polygon:{ hierarchy: Cesium.Cartesian3.fromDegreesArray(ring.reduce((a,c)=>{a.push(c[0],c[1]); return a;},[])), material: Cesium.Color.fromCssColorString('#f5a623').withAlpha(.2), outline:true, outlineColor: Cesium.Color.fromCssColorString('#f5a623') }
+    });
+    cesiumEntities.push(ent);
+  });
+  const lineLayer = L.polyline(points, {color:'#f5a623', weight:2, dashArray:'4 4'}).addTo(leafletMap);
+  leafletMarkers.push(lineLayer);
+  const areaKm2 = (turf.area(buffered)/1e6).toFixed(2);
+  addResult('بافر خطی '+radiusKm+' کیلومتری ('+points.length+' نقطه)', areaKm2 + ' km²');
 }
 
 leafletMap.on('click', function(e){
   if (bufferMode){
-    const radiusKm = parseFloat(prompt('شعاع بافر تحلیلی را به کیلومتر وارد کنید:', '5'));
+    const radiusKm = parseFloat(prompt('شعاع بافر نقطه‌ای را به کیلومتر وارد کنید:', '5'));
     if (!isNaN(radiusKm) && radiusKm > 0){ drawBuffer(e.latlng.lat, e.latlng.lng, radiusKm); }
     return;
   }
@@ -1090,6 +1149,8 @@ leafletMap.on('click', function(e){
     tempLeafletLayer = L.polyline(drawPoints, {color:'#2dd4e8', weight:3}).addTo(leafletMap);
   } else if (mode === 'area'){
     tempLeafletLayer = L.polygon(drawPoints, {color:'#f5a623', weight:2, fillOpacity:.15}).addTo(leafletMap);
+  } else if (mode === 'bufferLine'){
+    tempLeafletLayer = L.polyline(drawPoints, {color:'#f5a623', weight:3, dashArray:'6 4'}).addTo(leafletMap);
   }
 });
 
@@ -1113,12 +1174,16 @@ leafletMap.on('dblclick', function(e){
     const areaKm2 = (areaM2/1e6).toFixed(3);
     addResult('مساحت چندضلعی', areaKm2 + ' km²');
     syncShapeToCesium(drawPoints, 'polygon');
+  } else if (mode === 'bufferLine'){
+    if (tempLeafletLayer){ leafletMap.removeLayer(tempLeafletLayer); tempLeafletLayer = null; }
+    const radiusKm = parseFloat(prompt('شعاع بافر اطراف خط را به کیلومتر وارد کنید:', '2'));
+    if (!isNaN(radiusKm) && radiusKm > 0){ drawBufferOnLine(drawPoints, radiusKm); }
   }
 
   drawPoints = [];
   hint.style.display = 'none';
   mode = null;
-  ['btnMeasureDist','btnMeasureArea'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  ['btnMeasureDist','btnMeasureArea','btnBufferLine'].forEach(id=>document.getElementById(id).classList.remove('active'));
 });
 
 function syncShapeToCesium(points, kind){
@@ -1432,7 +1497,7 @@ document.getElementById('btnStreetview').addEventListener('click', ()=>{
   document.getElementById('btnStreetview').classList.toggle('active', streetviewPickMode);
   hint.style.display = streetviewPickMode ? 'block' : 'none';
   hint.textContent = 'حالت استریت‌ویو — روی نقشه دوبعدی کلیک کنید تا پانورامای همان نقطه باز شود';
-  if (streetviewPickMode){ mode = null; bufferMode = false; ['btnMeasureDist','btnMeasureArea','btnMarker','btnBuffer'].forEach(id=>document.getElementById(id).classList.remove('active')); }
+  if (streetviewPickMode){ mode = null; bufferMode = false; ['btnMeasureDist','btnMeasureArea','btnMarker','btnBuffer','btnBufferLine'].forEach(id=>document.getElementById(id).classList.remove('active')); }
 });
 function openStreetview(lat, lon){
   const holder = document.getElementById('streetviewFrameHolder');
@@ -1455,6 +1520,210 @@ document.getElementById('streetviewClose').addEventListener('click', ()=>{
 leafletMap.on('click', function(e){
   if (!streetviewPickMode) return;
   openStreetview(e.latlng.lat, e.latlng.lng);
+});
+
+/* =========================================================
+   7d-3) ردیابی زنده پرواز (ADS-B — OpenSky Network، رایگان بدون کلید)
+   ========================================================= */
+function altitudeColor(altM){
+  if (altM == null || altM < 0) return '#8a8a8a';       // روی زمین / نامشخص
+  if (altM < 1000)  return '#8a8a8a';
+  if (altM < 3000)  return '#3aa0ff';
+  if (altM < 6000)  return '#2dd4e8';
+  if (altM < 9000)  return '#4bd07a';
+  if (altM < 11000) return '#f5c542';
+  return '#f5a623';
+}
+function planeDivIcon(color, headingDeg){
+  const rot = (headingDeg || 0);
+  return L.divIcon({
+    className:'flight-icon',
+    html:'<svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate('+rot+'deg)"><path d="M12 2 L15 10 L22 13 L15 15 L16 21 L12 19 L8 21 L9 15 L2 13 L9 10 Z" fill="'+color+'" stroke="#0a0f14" stroke-width="0.8"/></svg>',
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+}
+let flightLeafletGroup = L.layerGroup();
+let flightCesiumEntities = {};
+let flightTimer = null;
+let flightFetchInFlight = false;
+
+async function fetchFlights(){
+  if (flightFetchInFlight) return;
+  if (!document.getElementById('ovFlights').checked) return;
+  flightFetchInFlight = true;
+  try{
+    const b = leafletMap.getBounds();
+    const url = 'https://opensky-network.org/api/states/all?lamin='+b.getSouth()+'&lomin='+b.getWest()+'&lamax='+b.getNorth()+'&lomax='+b.getEast();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const states = data.states || [];
+    leafletMap.removeLayer(flightLeafletGroup);
+    flightLeafletGroup.clearLayers();
+    Object.values(flightCesiumEntities).forEach(ent=>cesiumViewer.entities.remove(ent));
+    flightCesiumEntities = {};
+
+    states.forEach(s=>{
+      const [icao24, callsign, , , , lon, lat, baroAlt, onGround, velocity, trueTrack, , , geoAlt] = s;
+      if (lat == null || lon == null) return;
+      const alt = geoAlt != null ? geoAlt : baroAlt;
+      const color = onGround ? '#8a8a8a' : altitudeColor(alt);
+      const label = (callsign || icao24 || '').trim();
+      const icon = planeDivIcon(color, trueTrack);
+      const popupHtml = '<b>'+escapeHtml(label || 'پرواز ناشناس')+'</b>'
+        + '<div style="font-size:11px;color:#7f92a6;margin-top:4px">ارتفاع: '+(alt!=null? Math.round(alt)+' m':'—')
+        + ' · سرعت: '+(velocity!=null? Math.round(velocity*3.6)+' km/h':'—')+'</div>'
+        + (onGround ? '<div style="font-size:10.5px;color:#f5a623">روی زمین</div>' : '');
+      const m = L.marker([lat, lon], {icon}).bindPopup(popupHtml);
+      flightLeafletGroup.addLayer(m);
+      const ent = cesiumViewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, alt || 0),
+        point: { pixelSize: 7, color: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+        description: popupHtml
+      });
+      flightCesiumEntities[icao24] = ent;
+    });
+    flightLeafletGroup.addTo(leafletMap);
+  }catch(err){
+    console.error('خطا در دریافت داده OpenSky', err);
+  }finally{
+    flightFetchInFlight = false;
+  }
+}
+function toggleFlights(on){
+  if (on){
+    fetchFlights();
+    if (flightTimer) clearInterval(flightTimer);
+    flightTimer = setInterval(fetchFlights, 15000); // محدودیت نرخ OpenSky برای کاربر ناشناس را رعایت می‌کند
+  } else {
+    if (flightTimer){ clearInterval(flightTimer); flightTimer = null; }
+    leafletMap.removeLayer(flightLeafletGroup);
+    flightLeafletGroup.clearLayers();
+    Object.values(flightCesiumEntities).forEach(ent=>cesiumViewer.entities.remove(ent));
+    flightCesiumEntities = {};
+  }
+}
+document.getElementById('ovFlights').addEventListener('change', e=>toggleFlights(e.target.checked));
+let flightMoveDebounce = null;
+leafletMap.on('moveend', ()=>{
+  if (!document.getElementById('ovFlights').checked) return;
+  clearTimeout(flightMoveDebounce);
+  flightMoveDebounce = setTimeout(fetchFlights, 1200);
+});
+
+/* =========================================================
+   7d-4) ردیابی زنده شناور (AIS — aisstream.io، نیازمند کلید رایگان)
+   ========================================================= */
+function shipDivIcon(color, headingDeg){
+  const rot = (headingDeg != null ? headingDeg : 0);
+  return L.divIcon({
+    className:'ship-icon',
+    html:'<svg width="16" height="16" viewBox="0 0 24 24" style="transform:rotate('+rot+'deg)"><path d="M12 2 L18 20 L12 16 L6 20 Z" fill="'+color+'" stroke="#0a0f14" stroke-width="1"/></svg>',
+    iconSize:[16,16], iconAnchor:[8,8]
+  });
+}
+function shipColor(sog){
+  if (sog == null) return '#9fb4c7';
+  if (sog < 0.5) return '#f5c542';   // لنگر انداخته / بی‌حرکت
+  if (sog < 8)   return '#4bd07a';   // سرعت کم
+  return '#2dd4e8';                  // در حال حرکت
+}
+let shipSocket = null;
+let shipMarkers = new Map(); // mmsi -> {marker, entity, ts}
+const shipLeafletGroup = L.layerGroup();
+let shipCleanupTimer = null;
+let shipResubscribeDebounce = null;
+
+function shipBoundingBox(){
+  const b = leafletMap.getBounds();
+  return [[[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]];
+}
+function openShipSocket(){
+  if (!CONFIG.AISSTREAM_API_KEY){
+    alert('برای نمایش زنده شناورها (AIS) باید یک کلید رایگان از aisstream.io بگیرید و در CONFIG.AISSTREAM_API_KEY کد قرار دهید.');
+    document.getElementById('ovShips').checked = false;
+    return;
+  }
+  closeShipSocket();
+  shipSocket = new WebSocket('wss://stream.aisstream.io/v0/stream');
+  shipSocket.onopen = ()=>{
+    shipSocket.send(JSON.stringify({
+      APIKey: CONFIG.AISSTREAM_API_KEY,
+      BoundingBoxes: shipBoundingBox(),
+      FilterMessageTypes: ['PositionReport']
+    }));
+  };
+  shipSocket.onmessage = (evt)=>{
+    try{
+      const msg = JSON.parse(evt.data);
+      if (msg.MessageType !== 'PositionReport') return;
+      const meta = msg.MetaData || {};
+      const pr = (msg.Message && msg.Message.PositionReport) || {};
+      const mmsi = meta.MMSI;
+      const lat = meta.latitude, lon = meta.longitude;
+      if (lat == null || lon == null) return;
+      const name = (meta.ShipName || ('MMSI ' + mmsi)).trim();
+      const heading = pr.TrueHeading != null && pr.TrueHeading < 360 ? pr.TrueHeading : pr.Cog;
+      const color = shipColor(pr.Sog);
+      const popupHtml = '<b>'+escapeHtml(name)+'</b>'
+        + '<div style="font-size:11px;color:#7f92a6;margin-top:4px">سرعت: '+(pr.Sog!=null? pr.Sog.toFixed(1)+' گره':'—')+'</div>'
+        + '<div style="font-size:10.5px;color:#7f92a6">بروزرسانی: همین الان</div>';
+      let entry = shipMarkers.get(mmsi);
+      const icon = shipDivIcon(color, heading);
+      if (entry){
+        entry.marker.setLatLng([lat, lon]);
+        entry.marker.setIcon(icon);
+        entry.marker.setPopupContent(popupHtml);
+        entry.entity.position = Cesium.Cartesian3.fromDegrees(lon, lat);
+        entry.entity.point.color = Cesium.Color.fromCssColorString(color);
+        entry.ts = Date.now();
+      } else {
+        const marker = L.marker([lat, lon], {icon}).bindPopup(popupHtml);
+        shipLeafletGroup.addLayer(marker);
+        const ent = cesiumViewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(lon, lat),
+          point: { pixelSize: 6, color: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+          description: popupHtml
+        });
+        shipMarkers.set(mmsi, { marker, entity: ent, ts: Date.now() });
+      }
+    }catch(err){ console.error('خطا در پردازش پیام AIS', err); }
+  };
+  shipSocket.onerror = (err)=> console.error('خطای اتصال AIS', err);
+  shipSocket.onclose = ()=>{ shipSocket = null; };
+}
+function closeShipSocket(){
+  if (shipSocket){ try{ shipSocket.close(); }catch(e){} shipSocket = null; }
+}
+function toggleShips(on){
+  if (on){
+    shipLeafletGroup.addTo(leafletMap);
+    openShipSocket();
+    if (shipCleanupTimer) clearInterval(shipCleanupTimer);
+    shipCleanupTimer = setInterval(()=>{
+      const cutoff = Date.now() - 10*60*1000; // حذف شناورهایی که ۱۰ دقیقه بروزرسانی نشده‌اند
+      shipMarkers.forEach((entry, mmsi)=>{
+        if (entry.ts < cutoff){
+          shipLeafletGroup.removeLayer(entry.marker);
+          cesiumViewer.entities.remove(entry.entity);
+          shipMarkers.delete(mmsi);
+        }
+      });
+    }, 60000);
+  } else {
+    closeShipSocket();
+    if (shipCleanupTimer){ clearInterval(shipCleanupTimer); shipCleanupTimer = null; }
+    leafletMap.removeLayer(shipLeafletGroup);
+    shipLeafletGroup.clearLayers();
+    shipMarkers.forEach(entry=> cesiumViewer.entities.remove(entry.entity));
+    shipMarkers.clear();
+  }
+}
+document.getElementById('ovShips').addEventListener('change', e=>toggleShips(e.target.checked));
+leafletMap.on('moveend', ()=>{
+  if (!document.getElementById('ovShips').checked || !shipSocket) return;
+  clearTimeout(shipResubscribeDebounce);
+  shipResubscribeDebounce = setTimeout(openShipSocket, 1500); // بازتعریف محدوده جغرافیایی روی سرور aisstream
 });
 
 /* =========================================================
@@ -1766,7 +2035,7 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
   mode = null;
   bufferMode = false;
   document.getElementById('btnBuffer').classList.remove('active');
-  ['btnMeasureDist','btnMeasureArea','btnMarker'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  ['btnMeasureDist','btnMeasureArea','btnMarker','btnBufferLine'].forEach(id=>document.getElementById(id).classList.remove('active'));
   hint.style.display = 'none';
 });
 
