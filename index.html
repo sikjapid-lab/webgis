@@ -495,7 +495,7 @@
 
       <div id="layersPanel" class="float-panel">
         <h4>لایه‌های تحلیلی برخط</h4>
-        <label class="overlay-opt"><input type="checkbox" id="ovEarthquake"> زلزله‌های ۲۴ساعت اخیر (USGS)</label>
+        <label class="overlay-opt"><input type="checkbox" id="ovEarthquake"> ززلزله‌های ۲۴ساعت اخیر (USGS)</label>
         <label class="overlay-opt"><input type="checkbox" id="ovRain"> رادار بارش زنده (RainViewer)</label>
         <div class="credit-note">داده رادار: © RainViewer.com</div>
 
@@ -606,16 +606,6 @@
 /* ==========================================================================
    CONFIG & GLOBAL VARIABLES
    ========================================================================== */
-const CONFIG = {
-  OPENSKY_CLIENT_ID: 'sikjapid@gmail.com-api-client',
-  OPENSKY_CLIENT_SECRET: '2lzjHSo5FaXLt6fJ9SyweYKiAtW0uZN2',
-  GOOGLE_MAPS_API_KEY: '',
-  BING_MAPS_KEY: '',
-  PLANET_API_KEY: '',
-  PLANET_MOSAIC: 'global_monthly_2024_01_mosaic',
-  AISSTREAM_API_KEY: ''
-};
-
 const SOURCES = {
   osm:  { group:'پایه رایگان', label:'خیابانی (OSM)', leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19}}, cesium:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
   sat:  { group:'پایه رایگان', label:'تصویر ماهواره‌ای (Esri)', leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19}}, cesium:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'} },
@@ -802,61 +792,8 @@ document.getElementById('btnNews').addEventListener('click', ()=>{
 document.getElementById('btnResultsClose').addEventListener('click', ()=> resultsPanel.style.display='none');
 
 /* ==========================================================================
-   ROBUST CORS PROXY FETCH & OPENSKY FLIGHT TRACKER (FALLBACK MECHANISM)
+   OPENSKY FLIGHT TRACKER (DIRECT CORS + FALLBACK)
    ========================================================================== */
-let openskyAccessToken = null;
-let openskyTokenExpiry = 0;
-
-async function fetchWithCorsProxy(targetUrl, options = {}) {
-  const proxies = [
-    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-    url => 'https://corsproxy.io/?' + encodeURIComponent(url),
-    url => 'https://thingproxy.freeboard.io/fetch/' + url
-  ];
-
-  for (let i = 0; i < proxies.length; i++) {
-    try {
-      const proxyUrl = proxies[i](targetUrl);
-      const res = await fetch(proxyUrl, options);
-      if (!res.ok) continue;
-      
-      const text = await res.text();
-      if (text.trim().startsWith('<') || text.includes('Error code 522')) {
-        continue; // Cloudflare error page returned
-      }
-      return JSON.parse(text);
-    } catch(err) {
-      console.warn(`Proxy ${i+1} failed, trying next...`);
-    }
-  }
-  throw new Error('All CORS proxies failed or timed out.');
-}
-
-async function getOpenSkyAccessToken() {
-  const now = Date.now();
-  if (openskyAccessToken && now < openskyTokenExpiry - 300000) return openskyAccessToken;
-
-  const clientId = CONFIG.OPENSKY_CLIENT_ID;
-  const clientSecret = CONFIG.OPENSKY_CLIENT_SECRET;
-  const targetAuthUrl = 'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
-
-  const bodyParams = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: clientId,
-    client_secret: clientSecret
-  });
-
-  const data = await fetchWithCorsProxy(targetAuthUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: bodyParams.toString()
-  });
-
-  openskyAccessToken = data.access_token;
-  openskyTokenExpiry = now + ((data.expires_in || 1800) * 1000);
-  return openskyAccessToken;
-}
-
 let flightLeafletGroup = L.layerGroup().addTo(leafletMap);
 let flightCesiumEntities = {};
 let flightTimer = null;
@@ -870,25 +807,29 @@ function planeDivIcon(headingDeg){
   });
 }
 
+async function fetchOpenSkyData(apiUrl) {
+  // 1. Direct Native Fetch (OpenSky supports CORS natively for GET)
+  try {
+    const res = await fetch(apiUrl);
+    if (res.ok) return await res.json();
+  } catch (err) {
+    console.warn('Direct fetch failed, falling back to GET proxy...', err);
+  }
+
+  // 2. Fallback GET-only Proxy
+  const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl);
+  const res = await fetch(proxyUrl);
+  if (!res.ok) throw new Error('Proxy GET failed');
+  return await res.json();
+}
+
 async function fetchFlights(){
   if (!document.getElementById('ovFlights').checked) return;
   try {
     const b = leafletMap.getBounds();
-    const targetApiUrl = `https://opensky-network.org/api/states/all?lamin=${b.getSouth()}&lomin=${b.getWest()}&lamax=${b.getNorth()}&lomax=${b.getEast()}`;
+    const apiUrl = `https://opensky-network.org/api/states/all?lamin=${b.getSouth()}&lomin=${b.getWest()}&lamax=${b.getNorth()}&lomax=${b.getEast()}`;
     
-    let data;
-    try {
-      // 1. Try Authenticated OAuth2
-      const token = await getOpenSkyAccessToken();
-      data = await fetchWithCorsProxy(targetApiUrl, {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-    } catch(authErr) {
-      // 2. Fallback to Anonymous Public Endpoint if OAuth/Proxy fails
-      console.warn('OAuth OpenSky failed, falling back to Anonymous API endpoint...', authErr);
-      data = await fetchWithCorsProxy(targetApiUrl);
-    }
-
+    const data = await fetchOpenSkyData(apiUrl);
     if (!data || !data.states) return;
     const states = data.states || [];
 
@@ -919,7 +860,7 @@ async function fetchFlights(){
 document.getElementById('ovFlights').addEventListener('change', (e)=>{
   if (e.target.checked){
     fetchFlights();
-    flightTimer = setInterval(fetchFlights, 12000);
+    flightTimer = setInterval(fetchFlights, 10000);
   } else {
     if (flightTimer) clearInterval(flightTimer);
     flightLeafletGroup.clearLayers();
