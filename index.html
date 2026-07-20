@@ -1,1169 +1,208 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ژئوسینک — محیط وب GIS دوبعدی و سه‌بعدی</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ردیاب زنده پروازها (OpenSky Live Tracker)</title>
 
-<!-- کتابخانه‌های خارجی -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
-<link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Vazirmatn:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- کتابخانه‌های نقشه -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css">
 
-<style>
-  :root {
-    --bg: #080c11;
-    --panel: #0f151d;
-    --panel-2: #141c26;
-    --line: #1f2b38;
-    --text: #e7eef5;
-    --muted: #7f92a6;
-    --cyan: #2dd4e8;
-    --cyan-dim: #1a7d8a;
-    --amber: #f5a623;
-    --danger: #ef5b5b;
-    --radius: 10px;
-    font-size: 15px;
-  }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Vazirmatn', 'JetBrains Mono', sans-serif;
-    overflow: hidden;
-  }
-  .en, .mono { font-family: 'JetBrains Mono', monospace; direction: ltr; unicode-bidi: isolate; }
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { height: 100%; width: 100%; font-family: Tahoma, sans-serif; overflow: hidden; background: #0a0f14; color: #fff; }
 
-  #app {
-    display: grid;
-    grid-template-rows: 56px 1fr 30px;
-    height: 100vh;
-  }
+    #app { display: flex; flex-direction: column; height: 100vh; }
 
-  /* ---------- HEADER ---------- */
-  header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 16px;
-    background: linear-gradient(180deg, var(--panel), var(--panel) 90%, rgba(0,0,0,0));
-    border-bottom: 1px solid var(--line);
-    z-index: 950;
-    position: relative;
-  }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-left: 14px;
-    border-left: 1px solid var(--line);
-  }
-  .brand svg { display: block; }
-  .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
-  .brand-text b {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 18px;
-    letter-spacing: .5px;
-    font-weight: 700;
-    color: var(--text);
-  }
-  .brand-text span { font-size: 10px; color: var(--muted); letter-spacing: .5px; }
+    header {
+      height: 50px; background: #111822; border-bottom: 1px solid #1e293b;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+    }
+    .title { font-weight: bold; font-size: 15px; color: #2dd4e8; }
+    .status { font-size: 12px; color: #94a3b8; }
 
-  .toolgroup {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 4px;
-    flex-wrap: nowrap;
-  }
-  .tbtn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    padding: 8px 11px;
-    border-radius: 7px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 12.5px;
-    font-weight: 500;
-    white-space: nowrap;
-    transition: background .15s, color .15s;
-  }
-  .tbtn:hover { background: #1a2531; color: var(--text); }
-  .tbtn.active { background: var(--cyan); color: #03181c; font-weight: 700; }
-  .tbtn svg { width: 16px; height: 16px; flex: none; }
+    #mapContainer { display: grid; grid-template-columns: 1fr 1fr; flex: 1; min-height: 0; }
+    #leafletMap, #cesiumMap { height: 100%; width: 100%; position: relative; }
+    #leafletMap { border-left: 2px solid #1e293b; }
 
-  .search-wrap {
-    position: relative;
-    flex: 1;
-    max-width: 320px;
-  }
-  .search-wrap input {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 9px 40px 9px 12px;
-    color: var(--text);
-    font-family: inherit;
-    font-size: 13px;
-    outline: none;
-  }
-  .search-wrap input:focus { border-color: var(--cyan-dim); }
-  .search-wrap svg {
-    position: absolute;
-    right: 12px; top: 50%; transform: translateY(-50%);
-    width: 15px; height: 15px; color: var(--muted);
-    pointer-events: none;
-  }
-  #searchResults {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0; left: 0;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    max-height: 260px;
-    overflow: auto;
-    display: none;
-    z-index: 980;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  }
-  #searchResults div {
-    padding: 9px 12px;
-    font-size: 12.5px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--line);
-    color: #c7d3de;
-  }
-  #searchResults div:hover { background: #1a2531; color: var(--text); }
+    .map-label {
+      position: absolute; top: 10px; right: 10px; z-index: 1000;
+      background: rgba(15, 23, 42, 0.85); color: #2dd4e8; padding: 4px 10px;
+      border-radius: 6px; font-size: 11px; font-weight: bold; border: 1px solid #1e293b;
+    }
 
-  .header-spacer { flex: 1; }
-
-  /* ---------- MAP AREA ---------- */
-  #mapsRow {
-    position: relative;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    height: 100%;
-    min-height: 0;
-  }
-  #mapsRow.mode-2d { grid-template-columns: 1fr 0; }
-  #mapsRow.mode-3d { grid-template-columns: 0 1fr; }
-
-  #leafletContainer, #cesiumContainer {
-    position: relative;
-    height: 100%;
-    width: 100%;
-    min-width: 0;
-    overflow: hidden;
-  }
-  #leafletContainer { border-left: 2px solid var(--line); background: #0a1520; }
-  #cesiumContainer { background: #0a1520; }
-
-  .pane-tag {
-    position: absolute;
-    top: 10px; right: 10px;
-    z-index: 900;
-    background: rgba(8,12,17,.85);
-    backdrop-filter: blur(4px);
-    border: 1px solid var(--line);
-    color: var(--cyan);
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 700;
-    letter-spacing: 1px;
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    pointer-events: none;
-  }
-  #cesiumContainer .pane-tag { color: var(--amber); }
-
-  .mini-select {
-    position: absolute;
-    top: 10px; left: 10px;
-    z-index: 900;
-    background: rgba(15,21,29,.92);
-    border: 1px solid var(--line);
-    color: var(--text);
-    font-family: inherit;
-    font-size: 11.5px;
-    padding: 7px 8px;
-    border-radius: 7px;
-    max-width: 190px;
-    outline: none;
-    cursor: pointer;
-  }
-  .mini-select:focus { border-color: var(--cyan-dim); }
-
-  /* ---------- FLOAT PANELS ---------- */
-  .float-panel {
-    position: absolute;
-    z-index: 870;
-    background: rgba(15,21,29,.95);
-    backdrop-filter: blur(6px);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0,0,0,.4);
-    color: var(--text);
-    font-size: 12.5px;
-  }
-  #layersPanel {
-    top: 52px; left: 10px;
-    width: 260px;
-    max-height: calc(100% - 130px);
-    overflow-y: auto;
-    padding: 12px;
-    display: none;
-  }
-  #searchPanel {
-    top: 52px; left: 10px;
-    width: 290px;
-    max-height: calc(100% - 130px);
-    overflow-y: auto;
-    padding: 12px;
-    display: none;
-  }
-  #layersPanel h4, #resultsPanel h4, #searchPanel h4, #newsPanel h4 {
-    margin: 12px 0 8px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 12px;
-    letter-spacing: .8px;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-  #layersPanel h4:first-child, #searchPanel h4:first-child, #newsPanel h4:first-child { margin-top: 0; }
-
-  .overlay-opt {
-    display: flex; align-items: center; gap: 8px;
-    padding: 7px 8px; border-radius: 6px; cursor: pointer;
-    color: #c7d3de;
-    user-select: none;
-  }
-  .overlay-opt:hover { background: #1a2531; }
-  .overlay-opt input[type=checkbox] { accent-color: var(--cyan); width: 14px; height: 14px; cursor: pointer; }
-  .credit-note { font-size: 10px; color: var(--muted); padding: 0 8px 4px; margin-top: -2px; }
-
-  .panel-btn {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    color: var(--text);
-    padding: 9px 8px;
-    border-radius: 7px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 12px;
-    margin-top: 6px;
-    transition: all .15s;
-  }
-  .panel-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-  .panel-btn.primary { background: var(--cyan); color: #03181c; font-weight: 700; border-color: var(--cyan); }
-  .panel-btn.primary:hover { opacity: .9; }
-  .panel-btn.danger { border-color: var(--danger); color: var(--danger); }
-  .panel-btn.danger:hover { background: rgba(239,91,91,0.1); }
-
-  #searchPanel label { display: block; font-size: 11px; color: var(--muted); margin: 8px 0 4px; }
-  #searchPanel select, #searchPanel input[type=text], #searchPanel input[type=number] {
-    width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
-    padding: 7px 8px; border-radius: 6px; font-family: inherit; font-size: 12px; outline: none;
-  }
-  #searchPanel select:focus, #searchPanel input:focus { border-color: var(--cyan-dim); }
-
-  #resultsPanel {
-    bottom: 14px; left: 10px;
-    width: 290px;
-    max-height: 250px;
-    padding: 10px;
-    overflow: auto;
-    display: none;
-  }
-  .result-row {
-    display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;
-    padding: 7px 8px; border-radius: 6px; margin-bottom: 5px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    cursor: pointer;
-  }
-  .result-row:hover { border-color: var(--cyan-dim); }
-  .result-row .rtext { font-size: 11.5px; line-height: 1.5; }
-  .result-row .val { font-family: 'JetBrains Mono', monospace; color: var(--cyan); direction: ltr; font-size: 11px; }
-
-  /* ---------- NEWS PANEL ---------- */
-  #newsPanel {
-    top: 52px; left: 10px;
-    width: 320px;
-    max-height: calc(100% - 130px);
-    overflow-y: auto;
-    padding: 12px;
-    display: none;
-  }
-  #newsPanel label { display: block; font-size: 11px; color: var(--muted); margin: 8px 0 4px; }
-  #newsPanel input[type=text], #newsPanel select {
-    width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
-    padding: 7px 8px; border-radius: 6px; font-family: inherit; font-size: 12px; outline: none;
-  }
-  #newsStatus { font-size: 10.5px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
-  #newsList { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-  .news-item {
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
-    padding: 8px 9px; cursor: pointer; position: relative;
-  }
-  .news-item:hover { border-color: var(--cyan-dim); }
-  .news-item .ni-title { font-size: 12px; color: var(--text); line-height: 1.5; margin-bottom: 4px; }
-  .news-item .ni-meta { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--muted); }
-  .news-item .ni-src { color: var(--cyan); }
-  #newsBadge {
-    display: none; background: var(--amber); color: #241800; font-size: 9.5px; font-weight: 700;
-    border-radius: 20px; padding: 1px 6px; margin-inline-start: 4px; line-height: 1.4;
-  }
-
-  /* ---------- STREET VIEW MODAL ---------- */
-  #streetviewModal {
-    position: fixed; inset: 0; z-index: 2000; background: rgba(4,7,10,.82);
-    display: none; align-items: center; justify-content: center;
-  }
-  #streetviewBox {
-    width: min(920px, 92vw); height: min(560px, 80vh);
-    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    overflow: hidden; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,.6);
-  }
-  #streetviewBox iframe { width: 100%; height: 100%; border: 0; display: block; }
-  #streetviewClose {
-    position: absolute; top: 10px; left: 10px; z-index: 5;
-    background: rgba(15,21,29,.9); border: 1px solid var(--line); color: var(--text);
-    width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px;
-  }
-  #streetviewNote {
-    position: absolute; bottom: 0; right: 0; left: 0; padding: 8px 12px;
-    background: rgba(8,12,17,.92); color: var(--muted); font-size: 11px; text-align: center;
-  }
-
-  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
-  .panel-head-btns { display: flex; gap: 6px; flex: none; }
-  .panel-head-btns button {
-    background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
-    font-family: inherit; font-size: 10.5px; padding: 4px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap;
-  }
-  .panel-head-btns button:hover { border-color: var(--cyan-dim); color: var(--cyan); }
-
-  #navCluster {
-    position: absolute;
-    bottom: 14px; right: 10px;
-    z-index: 900;
-    display: flex; flex-direction: column; gap: 6px;
-  }
-  .navbtn {
-    width: 34px; height: 34px;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(15,21,29,.92);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .navbtn:hover { color: var(--cyan); border-color: var(--cyan-dim); }
-  .navbtn svg { width: 16px; height: 16px; }
-
-  #crosshair-hint {
-    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-    z-index: 900; background: rgba(245,166,35,.14); border: 1px solid var(--amber);
-    color: var(--amber); font-size: 12px; padding: 6px 14px; border-radius: 20px;
-    display: none; white-space: nowrap;
-  }
-
-  /* ---------- STATUS BAR ---------- */
-  #statusbar {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    padding: 0 16px;
-    background: var(--panel);
-    border-top: 1px solid var(--line);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px;
-    color: var(--muted);
-    direction: ltr;
-    justify-content: flex-start;
-  }
-  #statusbar b { color: var(--cyan); font-weight: 600; }
-  .status-sep { width: 1px; height: 14px; background: var(--line); }
-  #syncDot { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); display: inline-block; margin-left: 6px;}
-
-  .cesium-viewer-bottom, .cesium-widget-credits, .cesium-viewer-toolbar,
-  .cesium-viewer-animationContainer, .cesium-viewer-timelineContainer,
-  .cesium-viewer-fullscreenContainer, .cesium-viewer-geocoderContainer,
-  .cesium-viewer-homeButtonContainer, .cesium-viewer-sceneModePickerContainer,
-  .cesium-viewer-navigationHelpButtonContainer, .cesium-navigation-help,
-  .cesium-viewer-vrContainer { display: none !important; }
-
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-thumb { background: #26333f; border-radius: 3px; }
-</style>
+    /* استایل‌های Cesium جهت حذف عناصر اضافه UI */
+    .cesium-viewer-bottom, .cesium-widget-credits, .cesium-viewer-toolbar { display: none !important; }
+  </style>
 </head>
 <body>
 
 <div id="app">
-
-  <!-- HEADER -->
   <header>
-    <div class="brand">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="#2dd4e8" stroke-width="1.4"/>
-        <ellipse cx="12" cy="12" rx="9" ry="3.6" stroke="#2dd4e8" stroke-width="1" opacity=".6"/>
-        <path d="M12 3v18M3 12h18" stroke="#2dd4e8" stroke-width="1" opacity=".5"/>
-        <circle cx="12" cy="12" r="1.6" fill="#f5a623"/>
-      </svg>
-      <div class="brand-text">
-        <b>ژئوسینک</b>
-        <span>GEOSYNC · WEB GIS</span>
-      </div>
-    </div>
-
-    <div class="search-wrap">
-      <input id="searchInput" type="text" placeholder="جست‌وجوی مکان، شهر یا مختصات...">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <div id="searchResults"></div>
-    </div>
-
-    <div class="toolgroup">
-      <button class="tbtn" id="btnLayers" title="لایه‌های تحلیلی و داده سفارشی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        <span>لایه‌ها</span>
-      </button>
-      <button class="tbtn" id="btnSearchFeatures" title="جستجوی عوارض طبیعی و مصنوعی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="M20 20l-5-5"/><path d="M10 7v6M7 10h6"/></svg>
-        <span>جستجوی عوارض</span>
-      </button>
-      <button class="tbtn" id="btnNews" title="خبرخوان نقشه‌ای برخط (RSS)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h11a5 5 0 0 1 5 5v11H9a5 5 0 0 1-5-5V4Z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>
-        <span>اخبار</span><span id="newsBadge">0</span>
-      </button>
-      <button class="tbtn" id="btnStreetview" title="نمای خیابانی گوگل">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3"/><path d="M12 11v3"/><path d="M7 21c0-3 2.5-5 5-5s5 2 5 5"/></svg>
-        <span>استریت‌ویو</span>
-      </button>
-      <button class="tbtn" id="btnMeasureDist" title="اندازه‌گیری فاصله">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21 21 3"/><path d="M7 17l2 2M11 13l2 2M15 9l2 2"/></svg>
-        <span>فاصله</span>
-      </button>
-      <button class="tbtn" id="btnMeasureArea" title="اندازه‌گیری مساحت">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l8-3 8 3-2 12-6 3-6-3-2-12Z"/></svg>
-        <span>مساحت</span>
-      </button>
-      <button class="tbtn" id="btnBuffer" title="بافر نقطه‌ای">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>
-        <span>بافر نقطه</span>
-      </button>
-      <button class="tbtn" id="btnBufferLine" title="بافر خطی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17 10 8 14 13 21 5"/><path d="M3 17 10 8 14 13 21 5" stroke-opacity=".3" stroke-width="7"/></svg>
-        <span>بافر خط</span>
-      </button>
-      <button class="tbtn" id="btnMarker" title="افزودن نشانگر">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
-        <span>نشانگر</span>
-      </button>
-      <button class="tbtn" id="btnClear" title="پاک‌سازی">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
-        <span>پاک‌سازی</span>
-      </button>
-    </div>
-
-    <div class="header-spacer"></div>
-
-    <div class="toolgroup">
-      <button class="tbtn active" id="viewSplit">دو‌بعدی + سه‌بعدی</button>
-      <button class="tbtn" id="view2d">فقط دوبعدی</button>
-      <button class="tbtn" id="view3d">فقط سه‌بعدی</button>
-    </div>
+    <div class="title">✈️ ردیاب زنده پروازهای OpenSky Network</div>
+    <div class="status" id="statusText">در حال دریافت داده‌های اولیه...</div>
   </header>
 
-  <!-- MAPS -->
-  <div id="mapsRow" class="mode-split">
-    <div id="leafletContainer">
-      <div class="pane-tag">نمای ۲بعدی</div>
-      <select id="baseSelect2D" class="mini-select"></select>
-
-      <div id="layersPanel" class="float-panel">
-        <h4>لایه‌های تحلیلی برخط</h4>
-        <label class="overlay-opt"><input type="checkbox" id="ovEarthquake"> ززلزله‌های ۲۴ساعت اخیر (USGS)</label>
-        <label class="overlay-opt"><input type="checkbox" id="ovRain"> رادار بارش زنده (RainViewer)</label>
-        <div class="credit-note">داده رادار: © RainViewer.com</div>
-
-        <h4>ردیابی زنده</h4>
-        <label class="overlay-opt"><input type="checkbox" id="ovFlights"> پروازهای زنده (ADS-B — OpenSky)</label>
-        <div class="credit-note">داده پرواز: © The OpenSky Network</div>
-        <label class="overlay-opt"><input type="checkbox" id="ovShips"> شناورهای زنده (AIS — aisstream.io)</label>
-        <div class="credit-note">داده AIS: © aisstream.io</div>
-
-        <h4>داده سفارشی کاربر</h4>
-        <button class="panel-btn" id="btnUpload">بارگذاری GeoJSON / KML / Shapefile(zip)</button>
-        <input type="file" id="fileUpload" accept=".geojson,.json,.kml,.zip" style="display:none">
-      </div>
-
-      <div id="resultsPanel" class="float-panel">
-        <div class="panel-head">
-          <h4 style="margin:0">نتایج تحلیل و جستجو</h4>
-          <div class="panel-head-btns">
-            <button id="btnResultsClearAll" title="پاک‌سازی همه نتایج">پاک‌سازی همه</button>
-            <button id="btnResultsClose" title="بستن این پنل">✕</button>
-          </div>
-        </div>
-        <div id="resultsList"></div>
-      </div>
-
-      <div id="searchPanel" class="float-panel">
-        <h4>جستجوی عوارض طبیعی و مصنوعی</h4>
-        <label>دسته‌بندی تخصصی عوارض</label>
-        <select id="treeMenu">
-          <option value="all">همه عوارض</option>
-          <option value="building">ساختمان‌ها و سازه‌ها</option>
-          <option value="aeroway">فرودگاه و باند پرواز</option>
-          <option value="military">مراکز نظامی / دفاعی</option>
-          <option value="waterway">مسیرهای آبی و رودخانه‌ها</option>
-          <option value="natural">عوارض طبیعی و کوه‌ها</option>
-        </select>
-        <label>کلمه کلیدی (OSM tag)</label>
-        <input type="text" id="keywordInput" placeholder="مثلا: bridge, runway, radar">
-        <button class="panel-btn primary" id="btnRunSearch">🔍 اجرای جستجو</button>
-        <button class="panel-btn danger" id="btnClearSearch">پاک‌سازی نتایج جستجو</button>
-      </div>
-
-      <div id="newsPanel" class="float-panel">
-        <h4>خبرخوان برخط (RSS · ۲۴ ساعت اخیر)</h4>
-        <label class="overlay-opt"><input type="checkbox" id="ovNews" checked> نمایش پین خبرها روی نقشه</label>
-        <label>جستجو در عنوان و متن خبر</label>
-        <input type="text" id="newsSearch" placeholder="مثلا: ایران، انرژی...">
-        <label>منبع خبری</label>
-        <select id="newsSourceFilter"><option value="all">همه منابع</option></select>
-        <label class="overlay-opt" style="margin-top:2px"><input type="checkbox" id="newsOnlyMapped"> فقط خبرهای دارای مکان</label>
-        <button class="panel-btn" id="btnNewsRefresh">🔄 بروزرسانی اکنون</button>
-        <div id="newsStatus">در حال آماده‌سازی خبرخوان...</div>
-        <div id="newsList"></div>
-      </div>
+  <div id="mapContainer">
+    <div id="leafletMap">
+      <div class="map-label">نمای ۲بعدی (Leaflet)</div>
     </div>
-
-    <div id="cesiumContainer">
-      <div class="pane-tag">نمای ۳بعدی</div>
-      <select id="baseSelect3D" class="mini-select"></select>
-    </div>
-
-    <div id="crosshair-hint">حالت ترسیم فعال است</div>
-
-    <div id="navCluster">
-      <div class="navbtn" id="navHome" title="بازگشت به دید کلی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></div>
-      <div class="navbtn" id="navPlus" title="بزرگ‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
-      <div class="navbtn" id="navMinus" title="کوچک‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></div>
+    <div id="cesiumMap">
+      <div class="map-label">نمای ۳بعدی (Cesium)</div>
     </div>
   </div>
-
-  <!-- STREET VIEW MODAL -->
-  <div id="streetviewModal">
-    <div id="streetviewBox">
-      <button id="streetviewClose">✕</button>
-      <div id="streetviewFrameHolder"></div>
-      <div id="streetviewNote">برای فعال‌سازی کامل، کلید Google Maps API را در تنظیمات وارد کنید.</div>
-    </div>
-  </div>
-
-  <!-- STATUS BAR -->
-  <div id="statusbar">
-    <span>LAT <b id="stLat">--</b></span>
-    <span>LON <b id="stLon">--</b></span>
-    <div class="status-sep"></div>
-    <span>ZOOM <b id="stZoom">--</b></span>
-    <div class="status-sep"></div>
-    <span>SCALE <b id="stScale">--</b></span>
-    <div class="status-sep"></div>
-    <span>MODE <b id="stMode">SPLIT</b></span>
-    <div class="header-spacer"></div>
-    <span><span id="syncDot"></span>SYNC ACTIVE — 2D ⇄ 3D</span>
-  </div>
-
 </div>
 
-<!-- SCRIPT LIBRARIES -->
+<!-- اسکریپت‌ها -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
-<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-<script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
-<script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
-<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
-(function(){
+(function() {
+  /* ==========================================================================
+     ۱. مقداردهی اولیه نقشه ۲بعدی (Leaflet)
+     ========================================================================== */
+  const leafletMap = L.map('leafletMap', { zoomControl: true }).setView([32.4279, 53.6880], 5);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    subdomains: 'abcd'
+  }).addTo(leafletMap);
 
-/* ==========================================================================
-   CONFIG & GLOBAL VARIABLES
-   ========================================================================== */
-const SOURCES = {
-  osm:  { group:'پایه رایگان', label:'خیابانی (OSM)', leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19}}, cesium:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
-  sat:  { group:'پایه رایگان', label:'تصویر ماهواره‌ای (Esri)', leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19}}, cesium:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'} },
-  dark: { group:'پایه رایگان', label:'تم تاریک (CartoDB Dark)', leaflet:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19}}, cesium:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', subdomains:['a','b','c','d']} },
-  topo: { group:'پایه رایگان', label:'توپوگرافی (OpenTopoMap)', leaflet:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:17}}, cesium:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} }
-};
-const SOURCE_KEYS = Object.keys(SOURCES);
+  const flightLeafletGroup = L.layerGroup().addTo(leafletMap);
 
-function fillBaseSelect(selectEl){
-  SOURCE_KEYS.forEach(key=>{
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = SOURCES[key].label;
-    selectEl.appendChild(opt);
+  /* ==========================================================================
+     ۲. مقداردهی اولیه نقشه ۳بعدی (Cesium)
+     ========================================================================== */
+  Cesium.Ion.defaultAccessToken = undefined;
+  const cesiumViewer = new Cesium.Viewer('cesiumMap', {
+    imageryProvider: false, baseLayerPicker: false, geocoder: false, homeButton: false,
+    sceneModePicker: false, navigationHelpButton: false, animation: false, timeline: false,
+    fullscreenButton: false, infoBox: false, selectionIndicator: false,
+    terrainProvider: new Cesium.EllipsoidTerrainProvider()
   });
-}
-fillBaseSelect(document.getElementById('baseSelect2D'));
-fillBaseSelect(document.getElementById('baseSelect3D'));
 
-/* ==========================================================================
-   2D LEAFLET MAP INITIALIZATION
-   ========================================================================== */
-const leafletMap = L.map('leafletContainer', { zoomControl:false, preferCanvas:true }).setView([35.6892, 51.3890], 6);
-let leafletTileLayer = L.tileLayer(SOURCES.osm.leaflet.url, SOURCES.osm.leaflet.opts).addTo(leafletMap);
-
-function setLeafletSource(key){
-  leafletMap.removeLayer(leafletTileLayer);
-  leafletTileLayer = L.tileLayer(SOURCES[key].leaflet.url, SOURCES[key].leaflet.opts).addTo(leafletMap);
-}
-document.getElementById('baseSelect2D').addEventListener('change', e=> setLeafletSource(e.target.value));
-
-/* ==========================================================================
-   3D CESIUM MAP INITIALIZATION
-   ========================================================================== */
-Cesium.Ion.defaultAccessToken = undefined;
-const cesiumViewer = new Cesium.Viewer('cesiumContainer', {
-  imageryProvider: false, baseLayerPicker: false, geocoder: false, homeButton: false,
-  sceneModePicker: false, navigationHelpButton: false, animation: false, timeline: false,
-  fullscreenButton: false, infoBox: false, selectionIndicator: false, vrButton: false,
-  terrainProvider: new Cesium.EllipsoidTerrainProvider()
-});
-
-let cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
-  new Cesium.UrlTemplateImageryProvider({ url: SOURCES.osm.cesium.url })
-);
-function setCesiumSource(key){
-  cesiumViewer.imageryLayers.remove(cesiumImageryLayer, true);
-  cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
-    new Cesium.UrlTemplateImageryProvider({ url: SOURCES[key].cesium.url })
+  cesiumViewer.imageryLayers.addImageryProvider(
+    new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+      subdomains: ['a', 'b', 'c', 'd']
+    })
   );
-}
-document.getElementById('baseSelect3D').addEventListener('change', e=> setCesiumSource(e.target.value));
 
-cesiumViewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(51.3890, 35.6892, 1800000), duration: 0 });
-
-/* ==========================================================================
-   VIEW MODES & SYNCHRONIZATION (2D ⇄ 3D)
-   ========================================================================== */
-const mapsRow = document.getElementById('mapsRow');
-const viewSplit = document.getElementById('viewSplit');
-const view2d = document.getElementById('view2d');
-const view3d = document.getElementById('view3d');
-
-function setViewMode(mode){
-  viewSplit.classList.remove('active');
-  view2d.classList.remove('active');
-  view3d.classList.remove('active');
-  mapsRow.classList.remove('mode-split', 'mode-2d', 'mode-3d');
-
-  if (mode==='2d'){
-    view2d.classList.add('active');
-    mapsRow.classList.add('mode-2d');
-    document.getElementById('stMode').textContent = '2D ONLY';
-  } else if (mode==='3d'){
-    view3d.classList.add('active');
-    mapsRow.classList.add('mode-3d');
-    document.getElementById('stMode').textContent = '3D ONLY';
-  } else {
-    viewSplit.classList.add('active');
-    mapsRow.classList.add('mode-split');
-    document.getElementById('stMode').textContent = 'SPLIT';
-  }
-  setTimeout(()=>{ leafletMap.invalidateSize(); }, 200);
-}
-
-viewSplit.addEventListener('click', ()=> setViewMode('split'));
-view2d.addEventListener('click', ()=> setViewMode('2d'));
-view3d.addEventListener('click', ()=> setViewMode('3d'));
-
-let syncing = false;
-
-leafletMap.on('move', ()=>{
-  if (syncing) return;
-  syncing = true;
-  const center = leafletMap.getCenter();
-  const zoom = leafletMap.getZoom();
-  const height = (40000000 * Math.cos(center.lat * Math.PI / 180)) / Math.pow(2, zoom);
-  
-  cesiumViewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(center.lng, center.lat, height)
+  cesiumViewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(53.6880, 32.4279, 3000000),
+    duration: 0
   });
-  
-  updateStatus(center.lat, center.lng, zoom);
-  syncing = false;
-});
 
-function updateStatus(lat, lon, zoom){
-  document.getElementById('stLat').textContent = lat.toFixed(4);
-  document.getElementById('stLon').textContent = lon.toFixed(4);
-  document.getElementById('stZoom').textContent = Math.round(zoom);
-  const scaleM = Math.round(156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom) * 100);
-  document.getElementById('stScale').textContent = scaleM > 1000 ? (scaleM/1000).toFixed(1) + 'km' : scaleM + 'm';
-}
+  let flightCesiumEntities = [];
 
-/* ==========================================================================
-   NAVIGATION & SEARCH CONTROL
-   ========================================================================== */
-document.getElementById('navHome').addEventListener('click', ()=>{
-  leafletMap.setView([35.6892, 51.3890], 6);
-});
-document.getElementById('navPlus').addEventListener('click', ()=> leafletMap.zoomIn());
-document.getElementById('navMinus').addEventListener('click', ()=> leafletMap.zoomOut());
-
-const searchInput = document.getElementById('searchInput');
-const searchResults = document.getElementById('searchResults');
-
-searchInput.addEventListener('input', async (e)=>{
-  const q = e.target.value.trim();
-  if (q.length < 3) { searchResults.style.display = 'none'; return; }
-
-  try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5`);
-    const data = await res.json();
-    searchResults.innerHTML = '';
-    if (data.length === 0) {
-      searchResults.style.display = 'none';
-      return;
-    }
-    data.forEach(item=>{
-      const div = document.createElement('div');
-      div.textContent = item.display_name;
-      div.addEventListener('click', ()=>{
-        const lat = parseFloat(item.lat);
-        const lon = parseFloat(item.lon);
-        leafletMap.setView([lat, lon], 13);
-        searchResults.style.display = 'none';
-        searchInput.value = item.display_name;
-      });
-      searchResults.appendChild(div);
+  /* ==========================================================================
+     ۳. آیکون سفارشی هواپیما (با قابلیت چرخش بر اساس جهت پرواز)
+     ========================================================================== */
+  function planeIcon(headingDeg) {
+    return L.divIcon({
+      className: 'flight-icon-wrap',
+      html: `<svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate(${headingDeg || 0}deg); display:block;">
+              <path d="M12 2 L15 10 L22 13 L15 15 L16 21 L12 19 L8 21 L9 15 L2 13 L9 10 Z" fill="#2dd4e8" stroke="#080f14" stroke-width="1"/>
+             </svg>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
     });
-    searchResults.style.display = 'block';
-  } catch(err) { console.error('Search error:', err); }
-});
-
-/* ==========================================================================
-   PANEL CONTROLS TOGGLE
-   ========================================================================== */
-const layersPanel = document.getElementById('layersPanel');
-const searchPanel = document.getElementById('searchPanel');
-const newsPanel = document.getElementById('newsPanel');
-const resultsPanel = document.getElementById('resultsPanel');
-
-function closeAllPanels(){
-  layersPanel.style.display = 'none';
-  searchPanel.style.display = 'none';
-  newsPanel.style.display = 'none';
-}
-
-document.getElementById('btnLayers').addEventListener('click', ()=>{
-  const open = layersPanel.style.display !== 'block';
-  closeAllPanels();
-  if(open) layersPanel.style.display = 'block';
-});
-document.getElementById('btnSearchFeatures').addEventListener('click', ()=>{
-  const open = searchPanel.style.display !== 'block';
-  closeAllPanels();
-  if(open) searchPanel.style.display = 'block';
-});
-document.getElementById('btnNews').addEventListener('click', ()=>{
-  const open = newsPanel.style.display !== 'block';
-  closeAllPanels();
-  if(open) newsPanel.style.display = 'block';
-});
-document.getElementById('btnResultsClose').addEventListener('click', ()=> resultsPanel.style.display='none');
-
-/* ==========================================================================
-   OPENSKY FLIGHT TRACKER (DIRECT CORS + FALLBACK)
-   ========================================================================== */
-let flightLeafletGroup = L.layerGroup().addTo(leafletMap);
-let flightCesiumEntities = {};
-let flightTimer = null;
-
-function planeDivIcon(headingDeg){
-  return L.divIcon({
-    className: 'flight-icon',
-    html: `<svg width="20" height="20" viewBox="0 0 24 24" style="transform:rotate(${headingDeg||0}deg)"><path d="M12 2 L15 10 L22 13 L15 15 L16 21 L12 19 L8 21 L9 15 L2 13 L9 10 Z" fill="#2dd4e8" stroke="#000"/></svg>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
-  });
-}
-
-async function fetchOpenSkyData(apiUrl) {
-  // 1. Direct Native Fetch (OpenSky supports CORS natively for GET)
-  try {
-    const res = await fetch(apiUrl);
-    if (res.ok) return await res.json();
-  } catch (err) {
-    console.warn('Direct fetch failed, falling back to GET proxy...', err);
   }
 
-  // 2. Fallback GET-only Proxy
-  const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl);
-  const res = await fetch(proxyUrl);
-  if (!res.ok) throw new Error('Proxy GET failed');
-  return await res.json();
-}
+  /* ==========================================================================
+     ۴. تابع دریافت مستقیم داده پروازها از API عمومی OpenSky
+     ========================================================================== */
+  let isFetching = false;
 
-async function fetchFlights(){
-  if (!document.getElementById('ovFlights').checked) return;
-  try {
-    const b = leafletMap.getBounds();
-    const apiUrl = `https://opensky-network.org/api/states/all?lamin=${b.getSouth()}&lomin=${b.getWest()}&lamax=${b.getNorth()}&lomax=${b.getEast()}`;
-    
-    const data = await fetchOpenSkyData(apiUrl);
-    if (!data || !data.states) return;
-    const states = data.states || [];
+  async function fetchFlights() {
+    if (isFetching) return;
+    isFetching = true;
 
-    flightLeafletGroup.clearLayers();
-    Object.values(flightCesiumEntities).forEach(ent=>cesiumViewer.entities.remove(ent));
-    flightCesiumEntities = {};
+    const statusEl = document.getElementById('statusText');
+    statusEl.textContent = 'در حال بروزرسانی پروازها...';
 
-    states.forEach(s=>{
-      const [icao24, callsign, originCountry, , , lon, lat, baroAlt, onGround, velocity, trueTrack] = s;
-      if (lat == null || lon == null) return;
-
-      const label = (callsign || icao24 || '').trim();
-      const popupHtml = `<b>${label}</b><br>کشور: ${originCountry}<br>ارتفاع: ${baroAlt || 0} متر<br>سرعت: ${velocity || 0} m/s`;
-
-      const m = L.marker([lat, lon], {icon: planeDivIcon(trueTrack)}).bindPopup(popupHtml);
-      flightLeafletGroup.addLayer(m);
-
-      const ent = cesiumViewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(lon, lat, baroAlt || 0),
-        point: { pixelSize: 8, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-        description: popupHtml
-      });
-      flightCesiumEntities[icao24] = ent;
-    });
-  } catch(err){ console.error('Flight Fetch Error:', err); }
-}
-
-document.getElementById('ovFlights').addEventListener('change', (e)=>{
-  if (e.target.checked){
-    fetchFlights();
-    flightTimer = setInterval(fetchFlights, 10000);
-  } else {
-    if (flightTimer) clearInterval(flightTimer);
-    flightLeafletGroup.clearLayers();
-    Object.values(flightCesiumEntities).forEach(ent=>cesiumViewer.entities.remove(ent));
-    flightCesiumEntities = {};
-  }
-});
-
-/* ==========================================================================
-   USGS EARTHQUAKE & RAINVIEWER RADAR OVERLAYS
-   ========================================================================== */
-let eqLeafletGroup = L.layerGroup().addTo(leafletMap);
-let eqCesiumEntities = [];
-
-async function fetchEarthquakes(){
-  if (!document.getElementById('ovEarthquake').checked){
-    eqLeafletGroup.clearLayers();
-    eqCesiumEntities.forEach(e=>cesiumViewer.entities.remove(e));
-    eqCesiumEntities = [];
-    return;
-  }
-  try {
-    const res = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson');
-    const data = await res.json();
-    eqLeafletGroup.clearLayers();
-    eqCesiumEntities.forEach(e=>cesiumViewer.entities.remove(e));
-    eqCesiumEntities = [];
-
-    data.features.forEach(f=>{
-      const [lon, lat, depth] = f.geometry.coordinates;
-      const mag = f.properties.mag;
-      const place = f.properties.place;
-
-      const circle = L.circleMarker([lat, lon], {
-        radius: Math.max(mag * 3, 4),
-        color: mag > 5 ? '#ef5b5b' : '#f5a623',
-        fillColor: mag > 5 ? '#ef5b5b' : '#f5a623',
-        fillOpacity: 0.6
-      }).bindPopup(`<b>زلزله بزرگای ${mag}</b><br>${place}<br>عمق: ${depth} کیلومتر`);
-      eqLeafletGroup.addLayer(circle);
-
-      const ent = cesiumViewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-        ellipse: {
-          semiMinorAxis: mag * 10000,
-          semiMajorAxis: mag * 10000,
-          material: mag > 5 ? Cesium.Color.RED.withAlpha(0.5) : Cesium.Color.ORANGE.withAlpha(0.5)
-        },
-        description: `<b>زلزله بزرگای ${mag}</b><br>${place}`
-      });
-      eqCesiumEntities.push(ent);
-    });
-  } catch(err){ console.error('Earthquake fetch error:', err); }
-}
-
-document.getElementById('ovEarthquake').addEventListener('change', fetchEarthquakes);
-
-let rainRadarLayer = null;
-async function toggleRainRadar(e){
-  if (e.target.checked){
     try {
-      const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-      const data = await res.json();
-      const latestPath = data.radar.past[data.radar.past.length - 1].path;
-      rainRadarLayer = L.tileLayer(`https://tilecache.rainviewer.com${latestPath}/256/{z}/{x}/{y}/2/1_1.png`, {
-        opacity: 0.6, zIndex: 500
-      }).addTo(leafletMap);
-    } catch(err){ console.error('RainRadar error:', err); }
-  } else {
-    if (rainRadarLayer) leafletMap.removeLayer(rainRadarLayer);
-  }
-}
-document.getElementById('ovRain').addEventListener('change', toggleRainRadar);
+      const b = leafletMap.getBounds();
+      const apiUrl = `https://opensky-network.org/api/states/all?lamin=${b.getSouth().toFixed(4)}&lomin=${b.getWest().toFixed(4)}&lamax=${b.getNorth().toFixed(4)}&lomax=${b.getEast().toFixed(4)}`;
 
-/* ==========================================================================
-   OVERPASS API SEARCH (FEATURES SEARCH)
-   ========================================================================== */
-let overpassLayer = L.layerGroup().addTo(leafletMap);
+      let data = null;
 
-document.getElementById('btnRunSearch').addEventListener('click', async ()=>{
-  const cat = document.getElementById('treeMenu').value;
-  const kw = document.getElementById('keywordInput').value.trim();
-  const b = leafletMap.getBounds();
-  const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
-
-  let queryTag = '';
-  if (cat !== 'all') queryTag = `["${cat}"]`;
-  if (kw) queryTag += `["name"~"${kw}",i]`;
-
-  if (!queryTag) queryTag = '["building"]';
-
-  const query = `[out:json][timeout:25];(node${queryTag}(${bbox});way${queryTag}(${bbox}););out center 50;`;
-  const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    overpassLayer.clearLayers();
-
-    const resultsList = document.getElementById('resultsList');
-    resultsList.innerHTML = '';
-    resultsPanel.style.display = 'block';
-
-    data.elements.forEach(el=>{
-      const lat = el.lat || (el.center && el.center.lat);
-      const lon = el.lon || (el.center && el.center.lon);
-      if (!lat || !lon) return;
-
-      const name = (el.tags && (el.tags.name || el.tags.building || el.tags.amenity)) || 'عارضه OSM';
-      const m = L.marker([lat, lon]).bindPopup(`<b>${name}</b><br>نوع: ${el.type}`);
-      overpassLayer.addLayer(m);
-
-      const item = document.createElement('div');
-      item.className = 'result-row';
-      item.innerHTML = `<div class="rtext">${name}</div><div class="val">${lat.toFixed(3)}, ${lon.toFixed(3)}</div>`;
-      item.addEventListener('click', ()=> leafletMap.setView([lat, lon], 16));
-      resultsList.appendChild(item);
-    });
-  } catch(err){ alert('خطا در دریافت اطلاعات عوارض'); }
-});
-
-document.getElementById('btnClearSearch').addEventListener('click', ()=>{
-  overpassLayer.clearLayers();
-  document.getElementById('resultsList').innerHTML = '';
-  resultsPanel.style.display = 'none';
-});
-
-/* ==========================================================================
-   NEWS RSS MAPPER
-   ========================================================================== */
-let newsMarkersGroup = L.layerGroup().addTo(leafletMap);
-
-async function fetchNewsRSS(){
-  const statusEl = document.getElementById('newsStatus');
-  statusEl.textContent = 'در حال دریافت اخبار و تحلیل مکانی...';
-  try {
-    const targetRss = 'https://www.irna.ir/rss';
-    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetRss);
-    const res = await fetch(proxyUrl);
-    const text = await res.text();
-    const xml = new DOMParser().parseFromString(text, 'text/xml');
-    const items = xml.querySelectorAll('item');
-
-    newsMarkersGroup.clearLayers();
-    const newsList = document.getElementById('newsList');
-    newsList.innerHTML = '';
-    let count = 0;
-
-    items.forEach((item, idx)=>{
-      if (idx > 15) return;
-      const title = item.querySelector('title')?.textContent || 'بدون عنوان';
-      const link = item.querySelector('link')?.textContent || '#';
-
-      const div = document.createElement('div');
-      div.className = 'news-item';
-      div.innerHTML = `<div class="ni-title">${title}</div><div class="ni-meta"><span class="ni-src">IRNA</span><span>خبربرخط</span></div>`;
-      div.addEventListener('click', ()=> window.open(link, '_blank'));
-      newsList.appendChild(div);
-      count++;
-    });
-
-    document.getElementById('newsBadge').textContent = count;
-    document.getElementById('newsBadge').style.display = 'inline-block';
-    statusEl.textContent = `تعداد ${count} خبر بارگذاری شد.`;
-  } catch(err){ statusEl.textContent = 'خطا در بروزرسانی اخبار.'; }
-}
-
-document.getElementById('btnNewsRefresh').addEventListener('click', fetchNewsRSS);
-
-/* ==========================================================================
-   STREET VIEW MODAL
-   ========================================================================== */
-document.getElementById('btnStreetview').addEventListener('click', ()=>{
-  const center = leafletMap.getCenter();
-  const iframeUrl = `https://maps.google.com/maps?q=&layer=c&cbll=${center.lat},${center.lng}&cbp=11,0,0,0,0&output=embed`;
-  document.getElementById('streetviewFrameHolder').innerHTML = `<iframe src="${iframeUrl}"></iframe>`;
-  document.getElementById('streetviewModal').style.display = 'flex';
-});
-
-document.getElementById('streetviewClose').addEventListener('click', ()=>{
-  document.getElementById('streetviewModal').style.display = 'none';
-  document.getElementById('streetviewFrameHolder').innerHTML = '';
-});
-
-/* ==========================================================================
-   TURF ANALYTICS, BUFFER, DISTANCE & DRAWING
-   ========================================================================== */
-let drawnItems = new L.FeatureGroup().addTo(leafletMap);
-let drawControl = new L.Control.Draw({
-  edit: { featureGroup: drawnItems },
-  draw: {
-    polygon: true,
-    polyline: true,
-    rectangle: true,
-    circle: false,
-    marker: true,
-    circlemarker: false
-  }
-});
-
-leafletMap.on(L.Draw.Event.CREATED, (e)=>{
-  const layer = e.layer;
-  drawnItems.addLayer(layer);
-  const geojson = layer.toGeoJson();
-
-  if (e.layerType === 'polyline'){
-    const length = turf.length(geojson, {units: 'kilometers'});
-    alert(`طول مسیر ترسیم شده: ${length.toFixed(2)} کیلومتر`);
-  } else if (e.layerType === 'polygon' || e.layerType === 'rectangle'){
-    const area = turf.area(geojson);
-    alert(`مساحت عارضه: ${(area / 1000000).toFixed(2)} کیلومتر مربع (${Math.round(area)} متر مربع)`);
-  }
-});
-
-document.getElementById('btnMeasureDist').addEventListener('click', ()=>{
-  new L.Draw.Polyline(leafletMap, drawControl.options.draw.polyline).enable();
-});
-document.getElementById('btnMeasureArea').addEventListener('click', ()=>{
-  new L.Draw.Polygon(leafletMap, drawControl.options.draw.polygon).enable();
-});
-document.getElementById('btnMarker').addEventListener('click', ()=>{
-  new L.Draw.Marker(leafletMap, drawControl.options.draw.marker).enable();
-});
-
-document.getElementById('btnBuffer').addEventListener('click', ()=>{
-  const center = leafletMap.getCenter();
-  const pt = turf.point([center.lng, center.lat]);
-  const buffered = turf.buffer(pt, 10, {units: 'kilometers'});
-  L.geoJSON(buffered, { style: { color: '#f5a623', weight: 2, fillOpacity: 0.3 } }).addTo(leafletMap);
-});
-
-document.getElementById('btnBufferLine').addEventListener('click', ()=>{
-  new L.Draw.Polyline(leafletMap, drawControl.options.draw.polyline).enable();
-});
-
-/* ==========================================================================
-   CUSTOM FILE UPLOAD (GeoJSON, KML, Shapefile Zip)
-   ========================================================================== */
-let uploadedLeafletLayer = null;
-let uploadedCesiumEntities = [];
-
-document.getElementById('btnUpload').addEventListener('click', ()=> document.getElementById('fileUpload').click());
-
-document.getElementById('fileUpload').addEventListener('change', async (e)=>{
-  const file = e.target.files[0];
-  if (!file) return;
-
-  try {
-    let geojson;
-    const lname = file.name.toLowerCase();
-
-    if (lname.endsWith('.zip')){
-      geojson = await shp(await file.arrayBuffer());
-    } else if (lname.endsWith('.kml')){
-      const xml = new DOMParser().parseFromString(await file.text(), 'text/xml');
-      geojson = toGeoJSON.kml(xml);
-    } else {
-      geojson = JSON.parse(await file.text());
-    }
-
-    if (uploadedLeafletLayer) leafletMap.removeLayer(uploadedLeafletLayer);
-    uploadedCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-    uploadedCesiumEntities = [];
-
-    uploadedLeafletLayer = L.geoJSON(geojson, {
-      style: { color: '#2dd4e8', weight: 2, fillOpacity: 0.25 },
-      onEachFeature: (feature, layer)=>{
-        if (feature.properties){
-          layer.bindPopup(`<pre>${JSON.stringify(feature.properties, null, 2)}</pre>`);
-        }
+      // دریافت مستقیم و بدون نیاز به پروکسی/OAuth
+      try {
+        const res = await fetch(apiUrl, { signal: AbortSignal.timeout(6000) });
+        if (res.ok) data = await res.json();
+      } catch (e) {
+        // Fallback پروکسی ساده GET
+        const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl);
+        const resProxy = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+        if (resProxy.ok) data = await resProxy.json();
       }
-    }).addTo(leafletMap);
 
-    leafletMap.fitBounds(uploadedLeafletLayer.getBounds());
-  } catch(err){ alert('خطا در پردازش فایل بارگذاری شده. لطفا فرمت را بررسی نمایید.'); }
-  e.target.value = '';
-});
+      if (!data || !data.states) {
+        statusEl.textContent = 'هیچ پروازی در این محدوده یافت نشد یا محدودیت درخواست رخ داده است.';
+        isFetching = false;
+        return;
+      }
 
-/* ==========================================================================
-   GLOBAL CLEAR FUNCTION
-   ========================================================================== */
-document.getElementById('btnClear').addEventListener('click', ()=>{
-  drawnItems.clearLayers();
-  overpassLayer.clearLayers();
-  newsMarkersGroup.clearLayers();
-  if (uploadedLeafletLayer) leafletMap.removeLayer(uploadedLeafletLayer);
-  uploadedCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-  uploadedCesiumEntities = [];
-  flightLeafletGroup.clearLayers();
-  Object.values(flightCesiumEntities).forEach(ent=>cesiumViewer.entities.remove(ent));
-  flightCesiumEntities = {};
-  eqLeafletGroup.clearLayers();
-  eqCesiumEntities.forEach(e=>cesiumViewer.entities.remove(e));
-  eqCesiumEntities = [];
-  if (rainRadarLayer) leafletMap.removeLayer(rainRadarLayer);
-});
+      // پاک‌سازی تمام عارضه‌های قبلی
+      flightLeafletGroup.clearLayers();
+      flightCesiumEntities.forEach(ent => cesiumViewer.entities.remove(ent));
+      flightCesiumEntities = [];
 
-document.getElementById('btnResultsClearAll').addEventListener('click', ()=>{
-  document.getElementById('resultsList').innerHTML = '';
-  resultsPanel.style.display = 'none';
-  overpassLayer.clearLayers();
-});
+      const states = data.states.slice(0, 200); // نمایش حداکثر ۲۰۰ پرواز برای حفظ روان بودن سیستم
 
+      states.forEach(s => {
+        const [icao24, callsign, originCountry, , , lon, lat, baroAlt, onGround, velocity, trueTrack] = s;
+        if (lat == null || lon == null) return;
+
+        const flightCode = (callsign || icao24 || 'N/A').trim();
+        const altitude = baroAlt ? Math.round(baroAlt) : 0;
+        const speed = velocity ? Math.round(velocity * 3.6) : 0;
+
+        const popupContent = `
+          <div style="direction:rtl; font-size:12px; line-height:1.6;">
+            <b style="color:#2dd4e8;">پرواز: ${flightCode}</b><br>
+            <b>کشور:</b> ${originCountry}<br>
+            <b>ارتفاع:</b> ${altitude} متر<br>
+            <b>سرعت:</b> ${speed} km/h
+          </div>
+        `;
+
+        // ۱. اضافه کردن به Leaflet
+        const marker = L.marker([lat, lon], { icon: planeIcon(trueTrack) }).bindPopup(popupContent);
+        flightLeafletGroup.addLayer(marker);
+
+        // ۲. اضافه کردن به Cesium
+        const entity = cesiumViewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, altitude || 100),
+          point: { pixelSize: 6, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+          description: popupContent
+        });
+        flightCesiumEntities.push(entity);
+      });
+
+      statusEl.textContent = `تعداد ${states.length} پرواز زنده در محدوده فعال است (بروزرسانی بعدی: ۱۵ ثانیه دیگر)`;
+
+    } catch (err) {
+      console.error('خطا در دریافت پروازها:', err);
+      statusEl.textContent = 'خطا در برقراری ارتباط با OpenSky. مجدداً تلاش خواهد شد...';
+    } finally {
+      isFetching = false;
+    }
+  }
+
+  /* ==========================================================================
+     ۵. زمان‌بندی و رویدادها
+     ========================================================================== */
+  // اجرای اولیه
+  fetchFlights();
+
+  // بازخوانی خودکار هر ۱۵ ثانیه یک‌بار (طابق قوانین API OpenSky)
+  setInterval(fetchFlights, 15000);
+
+  // بروزرسانی پروازها هنگام جابجایی یا زوم نقشه ۲بعدی
+  leafletMap.on('moveend', fetchFlights);
 })();
 </script>
 </body>
