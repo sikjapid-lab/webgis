@@ -301,6 +301,77 @@
   }
   .result-row:hover{ border-color:var(--cyan-dim); }
   .result-row.active{ border-color:var(--cyan); background:rgba(45,212,232,.1); }
+
+  /* ---------- news panel ---------- */
+  #newsPanel{
+    top:52px; left:10px;
+    width:320px;
+    max-height:calc(100% - 130px);
+    overflow-y:auto;
+    padding:12px;
+    display:none;
+  }
+  #newsPanel h4{
+    margin:14px 0 8px;
+    font-family:'Rajdhani',sans-serif;
+    font-size:12px;
+    letter-spacing:.8px;
+    color:var(--muted);
+    text-transform:uppercase;
+  }
+  #newsPanel h4:first-child{ margin-top:0; }
+  #newsPanel label{ display:block; font-size:11px; color:var(--muted); margin:8px 0 4px; }
+  #newsPanel input[type=text], #newsPanel select{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:7px 8px; border-radius:6px; font-family:inherit; font-size:12px;
+  }
+  #newsStatus{ font-size:10.5px; color:var(--muted); margin-top:6px; line-height:1.6; }
+  #newsList{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  .news-item{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:8px 9px; cursor:pointer; position:relative;
+  }
+  .news-item:hover{ border-color:var(--cyan-dim); }
+  .news-item .ni-title{ font-size:12px; color:var(--text); line-height:1.5; margin-bottom:4px; }
+  .news-item .ni-meta{ display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--muted); }
+  .news-item .ni-src{ color:var(--cyan); }
+  .news-item .ni-new{
+    display:inline-block; background:var(--amber); color:#241800; font-size:9px; font-weight:700;
+    padding:1px 6px; border-radius:20px; margin-inline-end:6px;
+  }
+  .news-item .ni-nogeo{ opacity:.55; }
+  #newsBadge{
+    display:none; background:var(--amber); color:#241800; font-size:9.5px; font-weight:700;
+    border-radius:20px; padding:1px 6px; margin-inline-start:4px; line-height:1.4;
+  }
+  .news-icon-new{ animation:newsPulse 1.6s ease-out infinite; }
+  @keyframes newsPulse{
+    0%{ box-shadow:0 0 0 0 rgba(245,166,35,.65); }
+    70%{ box-shadow:0 0 0 12px rgba(245,166,35,0); }
+    100%{ box-shadow:0 0 0 0 rgba(245,166,35,0); }
+  }
+
+  /* ---------- street view modal ---------- */
+  #streetviewModal{
+    position:fixed; inset:0; z-index:2000; background:rgba(4,7,10,.82);
+    display:none; align-items:center; justify-content:center;
+  }
+  #streetviewBox{
+    width:min(920px, 92vw); height:min(560px, 80vh);
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    overflow:hidden; position:relative; box-shadow:0 20px 60px rgba(0,0,0,.6);
+  }
+  #streetviewBox iframe{ width:100%; height:100%; border:0; display:block; }
+  #streetviewClose{
+    position:absolute; top:10px; left:10px; z-index:5;
+    background:rgba(15,21,29,.9); border:1px solid var(--line); color:var(--text);
+    width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:15px;
+  }
+  #streetviewNote{
+    position:absolute; bottom:0; right:0; left:0; padding:8px 12px;
+    background:rgba(8,12,17,.92); color:var(--muted); font-size:11px; text-align:center;
+  }
+  .select-group-label{ font-weight:700; color:var(--cyan); font-size:10.5px; padding:6px 4px 2px; }
   .result-row .rtext{ font-size:11.5px; line-height:1.5; }
   .result-row .val{ font-family:'JetBrains Mono',monospace; color:var(--cyan); direction:ltr; font-size:11px; }
   .result-row button{
@@ -407,6 +478,14 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="M20 20l-5-5"/><path d="M10 7v6M7 10h6"/></svg>
         <span>جستجوی عوارض</span>
       </button>
+      <button class="tbtn" id="btnNews" title="خبرخوان نقشه‌ای برخط (RSS)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h11a5 5 0 0 1 5 5v11H9a5 5 0 0 1-5-5V4Z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>
+        <span>اخبار</span><span id="newsBadge">0</span>
+      </button>
+      <button class="tbtn" id="btnStreetview" title="نمای خیابانی گوگل (نیازمند کلید Google Maps)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3"/><path d="M12 11v3"/><path d="M7 21c0-3 2.5-5 5-5s5 2 5 5"/></svg>
+        <span>استریت‌ویو</span>
+      </button>
       <button class="tbtn" id="btnMeasureDist" title="اندازه‌گیری فاصله">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21 21 3"/><path d="M7 17l2 2M11 13l2 2M15 9l2 2"/></svg>
         <span>فاصله</span>
@@ -449,7 +528,6 @@
         <label class="overlay-opt"><input type="checkbox" id="ovEarthquake"> زلزله‌های ۲۴ساعت اخیر (USGS)</label>
         <label class="overlay-opt"><input type="checkbox" id="ovRain"> رادار بارش زنده (RainViewer)</label>
         <div class="credit-note">داده رادار: © RainViewer.com</div>
-        <label class="overlay-opt"><input type="checkbox" id="ovNews"> اخبار برخط جهانی (GDELT)</label>
 
         <h4>داده سفارشی کاربر</h4>
         <button class="panel-btn" id="btnUpload">بارگذاری GeoJSON / KML / Shapefile(zip)</button>
@@ -483,6 +561,19 @@
         <button class="panel-btn" id="btnExportExcel" style="display:none">📊 دانلود خروجی اکسل</button>
         <button class="panel-btn danger" id="btnClearSearch">پاک‌سازی نتایج جستجو</button>
       </div>
+
+      <div id="newsPanel" class="float-panel">
+        <h4>خبرخوان برخط (RSS · ۲۴ ساعت اخیر)</h4>
+        <label class="overlay-opt"><input type="checkbox" id="ovNews" checked> نمایش پین خبرها روی نقشه</label>
+        <label>جستجو در عنوان و متن خبر</label>
+        <input type="text" id="newsSearch" placeholder="مثلا: ایران، انرژی، تحریم...">
+        <label>منبع خبری</label>
+        <select id="newsSourceFilter"><option value="all">همه منابع</option></select>
+        <label class="overlay-opt" style="margin-top:2px"><input type="checkbox" id="newsOnlyMapped"> فقط خبرهای دارای مکان</label>
+        <button class="panel-btn" id="btnNewsRefresh">🔄 بروزرسانی اکنون</button>
+        <div id="newsStatus">در حال آماده‌سازی خبرخوان...</div>
+        <div id="newsList"></div>
+      </div>
     </div>
 
     <div id="cesiumContainer">
@@ -499,6 +590,15 @@
       <div class="navbtn" id="navPlus" title="بزرگ‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
       <div class="navbtn" id="navMinus" title="کوچک‌نمایی"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></div>
       <div class="navbtn" id="navNorth" title="شمال / بازنشانی چرخش"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6M12 16v6M4 12l8-3 8 3-8 3-8-3Z"/></svg></div>
+    </div>
+  </div>
+
+  <!-- ===================== STREET VIEW MODAL ===================== -->
+  <div id="streetviewModal">
+    <div id="streetviewBox">
+      <button id="streetviewClose">✕</button>
+      <div id="streetviewFrameHolder"></div>
+      <div id="streetviewNote">برای فعال‌سازی نمای خیابانی، کلید Google Maps API را در بخش CONFIG کد وارد کنید.</div>
     </div>
   </div>
 
@@ -530,34 +630,113 @@
 (function(){
 
 /* =========================================================
-   1) TILE SOURCES (100% free, no API key / no Cesium ion)
+   0) CONFIG — کلیدهای API اختیاری
+   برای فعال‌سازی کامل لایه‌های Bing / Planet / Sentinel Hub (تجاری با محدودیت)
+   و استریت‌ویو گوگل، مقادیر زیر را با کلید حساب خودتان پر کنید.
+   لایه‌های Google/Yandex از کاشی‌های عمومی (بدون کلید) استفاده می‌کنند که
+   خارج از چارچوب رسمی API آن سرویس‌هاست و صرفاً برای مصارف نمایشی/توسعه مناسب است؛
+   برای استفاده تجاری از API رسمی و کلید معتبر هر سرویس استفاده کنید.
+   ========================================================= */
+const CONFIG = {
+  GOOGLE_MAPS_API_KEY: '',      // برای استریت‌ویو گوگل لازم است
+  BING_MAPS_KEY: '',            // https://www.bingmapsportal.com
+  PLANET_API_KEY: '',           // https://www.planet.com/account
+  PLANET_MOSAIC: 'global_monthly_2024_01_mosaic',
+  SENTINEL_HUB_INSTANCE_ID: '', // https://apps.sentinel-hub.com  (اختیاری - نسخه رایگان EOX جایگزین پیش‌فرض است)
+  RSS2JSON_API_KEY: ''          // https://rss2json.com  (اختیاری - بدون کلید هم با محدودیت نرخ کار می‌کند)
+};
+
+/* =========================================================
+   1) TILE SOURCES
    ========================================================= */
 const SOURCES = {
-  osm:  { label:'خیابانی (OSM)', color:'#4b8f4b', leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© OpenStreetMap contributors'}},
+  osm:  { group:'پایه رایگان', label:'خیابانی (OSM)', color:'#4b8f4b', leaflet:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© OpenStreetMap contributors'}},
           cesium:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
-  sat:  { label:'تصویر ماهواره‌ای (Esri)', color:'#3a4a5c', leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19, attribution:'© Esri, Maxar, Earthstar Geographics'}},
+  sat:  { group:'پایه رایگان', label:'تصویر ماهواره‌ای (Esri)', color:'#3a4a5c', leaflet:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opts:{maxZoom:19, attribution:'© Esri, Maxar, Earthstar Geographics'}},
           cesium:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'} },
-  topo: { label:'توپوگرافی (OpenTopoMap)', color:'#b08c4b', leaflet:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)'}},
+  topo: { group:'پایه رایگان', label:'توپوگرافی (OpenTopoMap)', color:'#b08c4b', leaflet:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)'}},
           cesium:{url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
-  dark: { label:'تم تاریک (CartoDB Dark)', color:'#1b2430', leaflet:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
+  dark: { group:'پایه رایگان', label:'تم تاریک (CartoDB Dark)', color:'#1b2430', leaflet:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
           cesium:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', subdomains:['a','b','c','d']} },
-  light:{ label:'تم روشن (CartoDB Positron)', color:'#dfe6ec', leaflet:{url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
+  light:{ group:'پایه رایگان', label:'تم روشن (CartoDB Positron)', color:'#dfe6ec', leaflet:{url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', opts:{subdomains:'abcd', maxZoom:19, attribution:'© CARTO'}},
           cesium:{url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', subdomains:['a','b','c','d']} },
-  hot:  { label:'نقشه بشردوستانه (HOT)', color:'#a23a3a', leaflet:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© HOT OSM'}},
-          cesium:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', subdomains:['a','b','c']} }
+  hot:  { group:'پایه رایگان', label:'نقشه بشردوستانه (HOT)', color:'#a23a3a', leaflet:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', opts:{subdomains:'abc', maxZoom:19, attribution:'© HOT OSM'}},
+          cesium:{url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', subdomains:['a','b','c']} },
+
+  sentinel2: { group:'ماهواره‌ای پیشرفته', label:'سنتینل-۲ ابرزدوده (EOX)', color:'#2b6f8f',
+          leaflet:{url:'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg', opts:{maxZoom:16, attribution:'© EOX IT Services — Sentinel-2 cloudless (Sentinel-2 data © ESA)'}},
+          cesium:{url:'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'} },
+  planet: { group:'ماهواره‌ای پیشرفته', label:'پلنت (Planet Basemap)', color:'#5c8f3a', needsKey:'PLANET_API_KEY',
+          leaflet:{url:'https://tiles.planet.com/basemaps/v1/planet-tiles/'+'{mosaic}'+'/gmap/{z}/{x}/{y}.png?api_key={key}', opts:{maxZoom:18, attribution:'© Planet Labs PBC'}},
+          cesium:{url:'https://tiles.planet.com/basemaps/v1/planet-tiles/'+'{mosaic}'+'/gmap/{z}/{x}/{y}.png?api_key={key}'} },
+
+  gmap_road: { group:'گوگل (کاشی عمومی — غیررسمی)', label:'گوگل نقشه (Road)', color:'#4285F4',
+          leaflet:{url:'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', opts:{subdomains:'0123', maxZoom:20, attribution:'© Google'}},
+          cesium:{url:'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', subdomains:['0','1','2','3']} },
+  gmap_sat: { group:'گوگل (کاشی عمومی — غیررسمی)', label:'گوگل ماهواره (Satellite)', color:'#1a3c1a',
+          leaflet:{url:'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', opts:{subdomains:'0123', maxZoom:20, attribution:'© Google'}},
+          cesium:{url:'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', subdomains:['0','1','2','3']} },
+  gmap_hybrid: { group:'گوگل (کاشی عمومی — غیررسمی)', label:'گوگل ارث (Hybrid)', color:'#2b4a2b',
+          leaflet:{url:'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', opts:{subdomains:'0123', maxZoom:20, attribution:'© Google'}},
+          cesium:{url:'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', subdomains:['0','1','2','3']} },
+  gmap_terrain: { group:'گوگل (کاشی عمومی — غیررسمی)', label:'گوگل توپوگرافی (Terrain)', color:'#8f7a3a',
+          leaflet:{url:'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', opts:{subdomains:'0123', maxZoom:20, attribution:'© Google'}},
+          cesium:{url:'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', subdomains:['0','1','2','3']} },
+
+  bing_aerial: { group:'بینگ / یاندکس', label:'بینگ ماهواره (Aerial)', color:'#5c2d91', needsKey:'BING_MAPS_KEY',
+          leaflet:{url:'https://ecn.t{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1&key={key}', opts:{subdomains:'0123', maxZoom:19, attribution:'© Microsoft Bing Maps'}},
+          cesium:{url:'https://ecn.t{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1&key={key}', subdomains:['0','1','2','3']}, quadkey:true },
+  yandex_map: { group:'بینگ / یاندکس', label:'یاندکس نقشه (Map)', color:'#e8342d',
+          leaflet:{url:'https://vec01.maps.yandex.net/tiles?l=map&v=24.06.01-0&x={x}&y={y}&z={z}&scale=1&lang=fa_IR', opts:{maxZoom:19, attribution:'© Yandex'}},
+          cesium:{url:'https://vec01.maps.yandex.net/tiles?l=map&v=24.06.01-0&x={x}&y={y}&z={z}&scale=1&lang=fa_IR'} },
+  yandex_sat: { group:'بینگ / یاندکس', label:'یاندکس ماهواره (Sat)', color:'#3a1a1a',
+          leaflet:{url:'https://sat01.maps.yandex.net/tiles?l=sat&v=3.1105.0&x={x}&y={y}&z={z}', opts:{maxZoom:19, attribution:'© Yandex'}},
+          cesium:{url:'https://sat01.maps.yandex.net/tiles?l=sat&v=3.1105.0&x={x}&y={y}&z={z}'} }
 };
 const SOURCE_KEYS = Object.keys(SOURCES);
 
 function fillBaseSelect(selectEl){
+  let lastGroup = null, groupEl = selectEl;
   SOURCE_KEYS.forEach(key=>{
+    const src = SOURCES[key];
+    if (src.group !== lastGroup){
+      groupEl = document.createElement('optgroup');
+      groupEl.label = src.group || 'سایر';
+      selectEl.appendChild(groupEl);
+      lastGroup = src.group;
+    }
     const opt = document.createElement('option');
     opt.value = key;
-    opt.textContent = SOURCES[key].label;
-    selectEl.appendChild(opt);
+    opt.textContent = src.label + (src.needsKey && !CONFIG[src.needsKey] ? ' (نیازمند کلید)' : '');
+    groupEl.appendChild(opt);
   });
 }
 fillBaseSelect(document.getElementById('baseSelect2D'));
 fillBaseSelect(document.getElementById('baseSelect3D'));
+
+/* تبدیل quadkey برای بینگ + جایگذاری کلید/موزاییک در URLهای نیازمند پارامتر */
+function bingQuadKey(x, y, z){
+  let q = '';
+  for (let i = z; i > 0; i--){
+    let digit = 0; const mask = 1 << (i - 1);
+    if ((x & mask) !== 0) digit++;
+    if ((y & mask) !== 0) digit += 2;
+    q += digit;
+  }
+  return q;
+}
+function resolveTileUrl(key, kind, xyz){
+  const src = SOURCES[key];
+  let url = src[kind].url;
+  if (src.needsKey) url = url.replace('{key}', encodeURIComponent(CONFIG[src.needsKey] || ''));
+  if (key === 'planet') url = url.replace('{mosaic}', CONFIG.PLANET_MOSAIC);
+  if (src.quadkey && xyz) url = url.replace('{q}', bingQuadKey(xyz.x, xyz.y, xyz.z));
+  return url;
+}
+function sourceUnavailable(key){
+  const src = SOURCES[key];
+  return !!(src.needsKey && !CONFIG[src.needsKey]);
+}
 
 /* =========================================================
    2) LEAFLET (2D)
@@ -565,10 +744,28 @@ fillBaseSelect(document.getElementById('baseSelect3D'));
 const leafletMap = L.map('leafletContainer', { zoomControl:false, attributionControl:true, preferCanvas:true })
   .setView([35.6892, 51.3890], 6); // تهران - نقطه شروع
 
-let leafletTileLayer = L.tileLayer(SOURCES.osm.leaflet.url, SOURCES.osm.leaflet.opts).addTo(leafletMap);
+const BingTileLayer = L.TileLayer.extend({
+  getTileUrl: function(coords){
+    return resolveTileUrl(this.options.srcKey, 'leaflet', {x:coords.x, y:coords.y, z:coords.z})
+      .replace('{s}', this._getSubdomain(coords));
+  }
+});
+function makeLeafletLayer(key){
+  const src = SOURCES[key];
+  if (src.quadkey){
+    return new BingTileLayer('', Object.assign({}, src.leaflet.opts, {srcKey:key}));
+  }
+  return L.tileLayer(resolveTileUrl(key, 'leaflet'), src.leaflet.opts);
+}
+let leafletTileLayer = makeLeafletLayer('osm').addTo(leafletMap);
 function setLeafletSource(key){
+  if (sourceUnavailable(key)){
+    alert('لایه «'+SOURCES[key].label+'» نیازمند کلید API است. مقدار آن را در CONFIG.'+SOURCES[key].needsKey+' در کد قرار دهید.');
+    document.getElementById('baseSelect2D').value = 'osm';
+    return;
+  }
   leafletMap.removeLayer(leafletTileLayer);
-  leafletTileLayer = L.tileLayer(SOURCES[key].leaflet.url, SOURCES[key].leaflet.opts).addTo(leafletMap);
+  leafletTileLayer = makeLeafletLayer(key).addTo(leafletMap);
 }
 // اطمینان از رندر صحیح کاشی‌ها حتی اگر گرید CSS با تاخیر یک فریم ابعاد را نهایی کند
 requestAnimationFrame(()=> leafletMap.invalidateSize());
@@ -602,14 +799,27 @@ if (cesiumViewer._cesiumWidget && cesiumViewer._cesiumWidget._creditContainer){
   cesiumViewer._cesiumWidget._creditContainer.style.display = 'none';
 }
 
-let cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
-  new Cesium.UrlTemplateImageryProvider({ url: SOURCES.osm.cesium.url, subdomains: SOURCES.osm.cesium.subdomains, credit:'OSM' })
-);
+function makeCesiumProvider(key){
+  const src = SOURCES[key];
+  const opts = { url: src.cesium.url, subdomains: src.cesium.subdomains || undefined, credit: src.label };
+  if (src.needsKey || src.quadkey || key === 'planet'){
+    opts.customTags = {
+      key: ()=> CONFIG[src.needsKey] || '',
+      mosaic: ()=> CONFIG.PLANET_MOSAIC,
+      q: (imageryProvider, x, y, level)=> src.quadkey ? bingQuadKey(x, y, level) : ''
+    };
+  }
+  return new Cesium.UrlTemplateImageryProvider(opts);
+}
+let cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(makeCesiumProvider('osm'));
 function setCesiumSource(key){
+  if (sourceUnavailable(key)){
+    alert('لایه «'+SOURCES[key].label+'» نیازمند کلید API است. مقدار آن را در CONFIG.'+SOURCES[key].needsKey+' در کد قرار دهید.');
+    document.getElementById('baseSelect3D').value = 'osm';
+    return;
+  }
   cesiumViewer.imageryLayers.remove(cesiumImageryLayer, true);
-  cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(
-    new Cesium.UrlTemplateImageryProvider({ url: SOURCES[key].cesium.url, subdomains: SOURCES[key].cesium.subdomains || undefined })
-  );
+  cesiumImageryLayer = cesiumViewer.imageryLayers.addImageryProvider(makeCesiumProvider(key));
 }
 
 cesiumViewer.camera.flyTo({
@@ -624,39 +834,90 @@ document.getElementById('baseSelect2D').addEventListener('change', e=> setLeafle
 document.getElementById('baseSelect3D').addEventListener('change', e=> setCesiumSource(e.target.value));
 
 /* =========================================================
-   4) SYNC ENGINE — 2D ⇄ 3D camera
+   4) SYNC ENGINE — 2D ⇄ 3D camera (دقیق‌شده با اصلاح عرض جغرافیایی و FOV)
+   نکته فنی: فرمول قبلی ارتفاع دوربین سیزیوم را فقط از روی زوم لیفلت
+   محاسبه می‌کرد و عرض جغرافیایی (فاکتور کسینوس مرکاتور) و زاویه دید
+   عمودی دوربین را نادیده می‌گرفت؛ همین باعث واگرایی تدریجی زوم دو نقشه
+   می‌شد (خصوصاً در عرض‌های جغرافیایی دور از استوا مثل ایران).
+   اینجا از تفکیک‌پذیری زمینی واقعی (ground resolution) به‌همراه ابعاد
+   واقعی canvas و fovy دوربین سیزیوم استفاده می‌شود تا دو نما همیشه
+   دقیقاً هم‌مقیاس بمانند.
    ========================================================= */
 let syncingFromLeaflet = false;
 let syncingFromCesium = false;
+const EARTH_CIRC = 2 * Math.PI * 6378137; // متر، محیط زمین در استوا
 
-function heightFromZoom(zoom){ return 591657550.5 / Math.pow(2, zoom - 1); }
-function zoomFromHeight(h){ return Math.max(2, Math.min(19, Math.log2(591657550.5 / h) + 1)); }
+function groundResolution(zoom, lat){ // متر بر پیکسل، با اصلاح عرض جغرافیایی
+  return (EARTH_CIRC * Math.cos(lat * Math.PI/180)) / (256 * Math.pow(2, zoom));
+}
+function heightFromZoomLat(zoom, lat){
+  const res = groundResolution(zoom, lat);
+  const canvasH = cesiumViewer.scene.canvas.clientHeight || 600;
+  const fovy = cesiumViewer.camera.frustum.fovy || Cesium.Math.toRadians(60);
+  return (res * canvasH / 2) / Math.tan(fovy / 2);
+}
+function zoomFromHeightLat(height, lat){
+  const canvasH = cesiumViewer.scene.canvas.clientHeight || 600;
+  const fovy = cesiumViewer.camera.frustum.fovy || Cesium.Math.toRadians(60);
+  const res = (height * Math.tan(fovy / 2) * 2) / canvasH;
+  const z = Math.log2((EARTH_CIRC * Math.cos(lat * Math.PI/180)) / (256 * res));
+  return Math.max(2, Math.min(19, z));
+}
 
+let leafletMoveRaf = null;
+leafletMap.on('move', function(){
+  if (syncingFromCesium) return;
+  if (leafletMoveRaf) return;
+  leafletMoveRaf = requestAnimationFrame(()=>{
+    leafletMoveRaf = null;
+    const c = leafletMap.getCenter();
+    const zoom = leafletMap.getZoom();
+    const h = heightFromZoomLat(zoom, c.lat);
+    syncingFromLeaflet = true;
+    cesiumViewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(c.lng, c.lat, h)
+    });
+    syncingFromLeaflet = false;
+    updateStatus(c.lat, c.lng, zoom);
+  });
+});
 leafletMap.on('moveend', function(){
   if (syncingFromCesium) return;
-  syncingFromLeaflet = true;
   const c = leafletMap.getCenter();
-  const h = heightFromZoom(leafletMap.getZoom());
+  const zoom = leafletMap.getZoom();
+  const h = heightFromZoomLat(zoom, c.lat);
+  syncingFromLeaflet = true;
   cesiumViewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(c.lng, c.lat, h),
-    duration: 0.4,
+    duration: 0.35,
     complete: ()=>{ syncingFromLeaflet = false; }
   });
-  setTimeout(()=>{ syncingFromLeaflet = false; }, 500);
-  updateStatus(c.lat, c.lng, leafletMap.getZoom());
+  setTimeout(()=>{ syncingFromLeaflet = false; }, 450);
+  updateStatus(c.lat, c.lng, zoom);
 });
 
-cesiumViewer.camera.moveEnd.addEventListener(function(){
-  if (syncingFromLeaflet) return;
+let cesiumMoveRaf = null;
+function cesiumToLeafletSync(animate){
   const carto = cesiumViewer.camera.positionCartographic;
   const lat = Cesium.Math.toDegrees(carto.latitude);
   const lon = Cesium.Math.toDegrees(carto.longitude);
-  const zoom = zoomFromHeight(carto.height);
+  const zoom = zoomFromHeightLat(carto.height, lat);
   syncingFromCesium = true;
-  leafletMap.setView([lat, lon], Math.round(zoom), { animate:false });
+  leafletMap.setView([lat, lon], Math.round(zoom * 10) / 10, { animate: !!animate });
   syncingFromCesium = false;
   updateStatus(lat, lon, Math.round(zoom));
+}
+cesiumViewer.camera.changed.addEventListener(function(){
+  if (syncingFromLeaflet) return;
+  if (cesiumMoveRaf) return;
+  cesiumMoveRaf = requestAnimationFrame(()=>{ cesiumMoveRaf = null; cesiumToLeafletSync(false); });
 });
+cesiumViewer.camera.moveEnd.addEventListener(function(){
+  if (syncingFromLeaflet) return;
+  cesiumToLeafletSync(false);
+});
+// حساسیت رویداد changed برای هماهنگی نرم‌تر حین چرخش/زوم موس
+cesiumViewer.camera.percentageChanged = 0.02;
 
 function updateStatus(lat, lon, zoom){
   document.getElementById('stLat').textContent = lat.toFixed(5);
@@ -672,7 +933,8 @@ updateStatus(35.6892, 51.3890, 6);
    ========================================================= */
 const layersPanel = document.getElementById('layersPanel');
 const searchPanel = document.getElementById('searchPanel');
-function closeAllPanels(){ layersPanel.style.display='none'; searchPanel.style.display='none'; }
+const newsPanel = document.getElementById('newsPanel');
+function closeAllPanels(){ layersPanel.style.display='none'; searchPanel.style.display='none'; newsPanel.style.display='none'; }
 document.getElementById('btnLayers').addEventListener('click', ()=>{
   const willOpen = layersPanel.style.display !== 'block';
   closeAllPanels();
@@ -682,6 +944,11 @@ document.getElementById('btnSearchFeatures').addEventListener('click', ()=>{
   const willOpen = searchPanel.style.display !== 'block';
   closeAllPanels();
   searchPanel.style.display = willOpen ? 'block' : 'none';
+});
+document.getElementById('btnNews').addEventListener('click', ()=>{
+  const willOpen = newsPanel.style.display !== 'block';
+  closeAllPanels();
+  newsPanel.style.display = willOpen ? 'block' : 'none';
 });
 
 /* =========================================================
@@ -935,41 +1202,260 @@ async function toggleRain(on){
 document.getElementById('ovRain').addEventListener('change', e=>toggleRain(e.target.checked));
 
 /* =========================================================
-   7d) OVERLAY: اخبار برخط جهانی (GDELT GEO 2.0 — رایگان، بدون کلید)
+   7d) خبرخوان نقشه‌ای برخط — RSS بجای GDELT
+   منطق کار:
+   ۱) چند فید RSS معتبر فارسی/بین‌المللی از طریق rss2json واکشی می‌شود.
+   ۲) خبرهای بازه ۲۴ ساعت اخیر نگه داشته می‌شوند.
+   ۳) با تطبیق نام کشور/شهر در عنوان و خلاصه خبر با یک واژه‌نامه مکانی،
+      موقعیت تقریبی هر خبر تعیین و به‌صورت پین روی هر دو نقشه گذاشته می‌شود.
+   ۴) خبرهایی که در واکشی جدید هستند (نسبت به واکشی قبلی) با نشان «جدید»
+      و پین چشمک‌زن مشخص می‌شوند.
+   ۵) پنل کناری امکان جستجو، فیلتر منبع و فیلتر «فقط دارای مکان» را می‌دهد.
    ========================================================= */
+const NEWS_FEEDS = [
+  { name:'BBC فارسی',        url:'https://feeds.bbci.co.uk/persian/rss.xml' },
+  { name:'ایرنا',            url:'https://www.irna.ir/rss' },
+  { name:'BBC World',        url:'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { name:'Al Jazeera',       url:'https://www.aljazeera.com/xml/rss/all.xml' },
+  { name:'Euronews',         url:'https://www.euronews.com/rss?level=theme&name=news' },
+  { name:'NYT World',        url:'https://rss.nytimes.com/services/xml/rss/nyt/World.xml' }
+];
+
+// واژه‌نامه تقریبی مکان (کشور/پایتخت/شهرهای مهم) → [lat, lon]
+const NEWS_GEO_DICT = [
+  ['تهران',35.6892,51.3890],['ایران',32.4279,53.6880],['اصفهان',32.6546,51.6680],['شیراز',29.5918,52.5837],
+  ['مشهد',36.2605,59.6168],['تبریز',38.0800,46.2919],['بندرعباس',27.1865,56.2808],['کرمان',30.2839,57.0834],
+  ['اهواز',31.3183,48.6706],['یزد',31.8974,54.3569],
+  ['عراق',33.2232,43.6793],['بغداد',33.3152,44.3661],['سوریه',34.8021,38.9968],['دمشق',33.5138,36.2765],
+  ['لبنان',33.8547,35.8623],['بیروت',33.8886,35.4955],['اسرائیل',31.0461,34.8516],['غزه',31.5017,34.4668],
+  ['تل‌آویو',32.0853,34.7818],['اردن',30.5852,36.2384],['ترکیه',38.9637,35.2433],['آنکارا',39.9334,32.8597],
+  ['استانبول',41.0082,28.9784],['عربستان',23.8859,45.0792],['ریاض',24.7136,46.6753],['قطر',25.3548,51.1839],
+  ['امارات',23.4241,53.8478],['دبی',25.2048,55.2708],['کویت',29.3117,47.4818],['بحرین',26.0667,50.5577],
+  ['عمان',21.4735,55.9754],['یمن',15.5527,48.5164],['افغانستان',33.9391,67.7100],['کابل',34.5553,69.2075],
+  ['پاکستان',30.3753,69.3451],['اسلام‌آباد',33.6844,73.0479],['هند',20.5937,78.9629],['دهلی',28.6139,77.2090],
+  ['چین',35.8617,104.1954],['پکن',39.9042,116.4074],['ژاپن',36.2048,138.2529],['توکیو',35.6762,139.6503],
+  ['کره',35.9078,127.7669],['روسیه',61.5240,105.3188],['مسکو',55.7558,37.6173],['اوکراین',48.3794,31.1656],
+  ['کی‌یف',50.4501,30.5234],['اروپا',50.1109,10.4809],['آلمان',51.1657,10.4515],['برلین',52.5200,13.4050],
+  ['فرانسه',46.2276,2.2137],['پاریس',48.8566,2.3522],['بریتانیا',55.3781,-3.4360],['لندن',51.5072,-0.1276],
+  ['ایتالیا',41.8719,12.5674],['رم',41.9028,12.4964],['اسپانیا',40.4637,-3.7492],['یونان',39.0742,21.8243],
+  ['آمریکا',37.0902,-95.7129],['واشنگتن',38.9072,-77.0369],['نیویورک',40.7128,-74.0060],['کانادا',56.1304,-106.3468],
+  ['مصر',26.8206,30.8025],['قاهره',30.0444,31.2357],['لیبی',26.3351,17.2283],['سودان',12.8628,30.2176],
+  ['الجزایر',28.0339,1.6596],['مراکش',31.7917,-7.0926],['تونس',33.8869,9.5375],['نیجریه',9.0820,8.6753],
+  ['اتیوپی',9.1450,40.4897],['استرالیا',-25.2744,133.7751],['برزیل',-14.2350,-51.9253],['ونزوئلا',6.4238,-66.5897],
+  ['ارمنستان',40.0691,45.0382],['آذربایجان',40.1431,47.5769],['گرجستان',42.3154,43.3569],
+  ['قزاقستان',48.0196,66.9237],['تاجیکستان',38.8610,71.2761],['ترکمنستان',38.9697,59.5563],['ازبکستان',41.3775,64.5853]
+].sort((a,b)=> b[0].length - a[0].length); // طولانی‌ترین نام‌ها اول تا از تطبیق نادرست جلوگیری شود
+
+function geocodeNewsText(text){
+  if (!text) return null;
+  for (const [name, lat, lon] of NEWS_GEO_DICT){
+    if (text.indexOf(name) !== -1) return {lat, lon, place:name};
+  }
+  return null;
+}
+function stripTags(html){ return String(html||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); }
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function newsHash(item){ return (item.link || item.title || '') + '|' + (item.pubDate || ''); }
+function timeAgoFa(dateMs){
+  const diffMin = Math.max(1, Math.round((Date.now() - dateMs) / 60000));
+  if (diffMin < 60) return diffMin + ' دقیقه پیش';
+  const h = Math.round(diffMin/60);
+  if (h < 24) return h + ' ساعت پیش';
+  return Math.round(h/24) + ' روز پیش';
+}
+
+let newsItems = [];       // آخرین مجموعه خبرهای معتبر (۲۴ ساعت اخیر)
+let newsSeenIds = new Set();
 let newsLeafletGroup = L.layerGroup();
 let newsCesiumEntities = [];
-async function toggleNews(on){
-  if (on){
-    try{
-      const url = 'https://api.gdeltproject.org/api/v2/geo/geo?query=news&mode=PointData&format=GeoJSON&timespan=1d&maxpoints=60';
-      const res = await fetch(url);
-      const data = await res.json();
-      (data.features || []).forEach(f=>{
-        if (!f.geometry || !f.geometry.coordinates) return;
-        const [lon, lat] = f.geometry.coordinates;
-        const name = (f.properties && f.properties.name) || 'خبر';
-        const html = sanitizeHtml(f.properties && f.properties.html);
-        const icon = L.divIcon({className:'news-icon', html:'<div style="width:12px;height:12px;border-radius:50%;background:#f5a623;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5)"></div>', iconSize:[12,12]});
-        const m = L.marker([lat, lon], {icon}).bindPopup('<b>' + name + '</b><div style="max-height:150px;overflow:auto;font-size:11px;margin-top:4px">' + html + '</div>');
-        newsLeafletGroup.addLayer(m);
-        const ent = cesiumViewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(lon, lat),
-          point: { pixelSize: 8, color: Cesium.Color.fromCssColorString('#f5a623'), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-          description: name
-        });
-        newsCesiumEntities.push(ent);
-      });
-      newsLeafletGroup.addTo(leafletMap);
-    }catch(err){ console.error(err); alert('خطا در دریافت اخبار برخط از GDELT — ممکن است این سرویس در شبکه شما در دسترس نباشد.'); document.getElementById('ovNews').checked=false; }
-  } else {
-    leafletMap.removeLayer(newsLeafletGroup);
-    newsLeafletGroup.clearLayers();
-    newsCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-    newsCesiumEntities = [];
-  }
+let newsAutoTimer = null;
+
+async function fetchFeed(feed){
+  const api = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feed.url)
+    + (CONFIG.RSS2JSON_API_KEY ? '&api_key=' + encodeURIComponent(CONFIG.RSS2JSON_API_KEY) : '');
+  try{
+    const res = await fetch(api);
+    const data = await res.json();
+    if (data.status !== 'ok' || !Array.isArray(data.items)) return [];
+    return data.items.map(it=>({
+      title: it.title || '(بدون عنوان)',
+      desc: stripTags(it.description || it.content || ''),
+      link: it.link,
+      pubDate: it.pubDate,
+      ts: Date.parse(it.pubDate) || Date.now(),
+      source: feed.name
+    }));
+  }catch(err){ console.error('خطا در دریافت فید', feed.name, err); return []; }
 }
-document.getElementById('ovNews').addEventListener('change', e=>toggleNews(e.target.checked));
+
+async function refreshNews(){
+  const statusEl = document.getElementById('newsStatus');
+  statusEl.textContent = 'در حال دریافت اخبار از ' + NEWS_FEEDS.length + ' منبع...';
+  const results = await Promise.all(NEWS_FEEDS.map(fetchFeed));
+  const cutoff = Date.now() - 24*3600*1000;
+  let all = [].concat(...results).filter(it=> it.ts >= cutoff);
+  all.sort((a,b)=> b.ts - a.ts);
+
+  const previousIds = newsSeenIds;
+  const freshIds = new Set();
+  let newCount = 0;
+  all.forEach(it=>{
+    const id = newsHash(it);
+    it.id = id;
+    it.isNew = previousIds.size > 0 && !previousIds.has(id);
+    if (it.isNew) newCount++;
+    freshIds.add(id);
+    const geo = geocodeNewsText(it.title + ' ' + it.desc);
+    it.geo = geo;
+  });
+  newsItems = all;
+  newsSeenIds = freshIds;
+
+  populateNewsSourceFilter();
+  renderNewsMarkers();
+  renderNewsList();
+
+  statusEl.textContent = all.length + ' خبر در ۲۴ ساعت اخیر — بروزرسانی: ' + new Date().toLocaleTimeString('fa-IR');
+  const badge = document.getElementById('newsBadge');
+  if (newCount > 0){ badge.style.display='inline-block'; badge.textContent = newCount; }
+}
+
+function populateNewsSourceFilter(){
+  const sel = document.getElementById('newsSourceFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="all">همه منابع</option>';
+  NEWS_FEEDS.forEach(f=>{
+    const opt = document.createElement('option');
+    opt.value = f.name; opt.textContent = f.name;
+    sel.appendChild(opt);
+  });
+  sel.value = current || 'all';
+}
+
+function currentNewsFilters(){
+  return {
+    q: document.getElementById('newsSearch').value.trim().toLowerCase(),
+    source: document.getElementById('newsSourceFilter').value,
+    onlyMapped: document.getElementById('newsOnlyMapped').checked
+  };
+}
+function matchesNewsFilters(it, f){
+  if (f.source !== 'all' && it.source !== f.source) return false;
+  if (f.onlyMapped && !it.geo) return false;
+  if (f.q){
+    const hay = (it.title + ' ' + it.desc).toLowerCase();
+    if (hay.indexOf(f.q) === -1) return false;
+  }
+  return true;
+}
+
+function renderNewsMarkers(){
+  leafletMap.removeLayer(newsLeafletGroup);
+  newsLeafletGroup.clearLayers();
+  newsCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
+  newsCesiumEntities = [];
+  if (!document.getElementById('ovNews').checked) return;
+
+  const f = currentNewsFilters();
+  newsItems.filter(it=>it.geo).filter(it=>matchesNewsFilters(it,f)).forEach(it=>{
+    const {lat, lon} = it.geo;
+    const dotClass = it.isNew ? 'news-icon-new' : '';
+    const icon = L.divIcon({
+      className:'news-icon',
+      html:'<div class="'+dotClass+'" style="width:12px;height:12px;border-radius:50%;background:#f5a623;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5)"></div>',
+      iconSize:[12,12]
+    });
+    const popupHtml = '<b>'+escapeHtml(it.title)+'</b>'
+      + '<div style="font-size:10.5px;color:#7f92a6;margin:4px 0">'+escapeHtml(it.source)+' · '+timeAgoFa(it.ts)+'</div>'
+      + '<div style="max-height:120px;overflow:auto;font-size:11px">'+escapeHtml(it.desc.slice(0,220))+'</div>'
+      + (it.link ? '<a href="'+encodeURI(it.link)+'" target="_blank" rel="noopener" style="font-size:11px;color:#2dd4e8">مشاهده خبر کامل ↗</a>' : '');
+    const m = L.marker([lat, lon], {icon}).bindPopup(popupHtml);
+    newsLeafletGroup.addLayer(m);
+    const ent = cesiumViewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon, lat),
+      point: { pixelSize: it.isNew ? 10 : 8, color: Cesium.Color.fromCssColorString('#f5a623'), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+      description: popupHtml
+    });
+    newsCesiumEntities.push(ent);
+  });
+  newsLeafletGroup.addTo(leafletMap);
+}
+
+function renderNewsList(){
+  const list = document.getElementById('newsList');
+  const f = currentNewsFilters();
+  const filtered = newsItems.filter(it=>matchesNewsFilters(it,f));
+  list.innerHTML = '';
+  if (!filtered.length){
+    list.innerHTML = '<div class="credit-note">خبری مطابق فیلتر یافت نشد.</div>';
+    return;
+  }
+  filtered.slice(0, 120).forEach(it=>{
+    const row = document.createElement('div');
+    row.className = 'news-item' + (it.geo ? '' : ' ni-nogeo');
+    row.innerHTML = '<div class="ni-title">' + (it.isNew ? '<span class="ni-new">جدید</span>' : '') + escapeHtml(it.title) + '</div>'
+      + '<div class="ni-meta"><span class="ni-src">'+escapeHtml(it.source)+'</span><span>'+timeAgoFa(it.ts)+(it.geo? '' : ' · بدون مکان')+'</span></div>';
+    row.addEventListener('click', ()=>{
+      if (it.geo){
+        leafletMap.setView([it.geo.lat, it.geo.lon], 8);
+        cesiumViewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(it.geo.lon, it.geo.lat, heightFromZoomLat(8, it.geo.lat)), duration: 1 });
+      } else if (it.link){
+        window.open(it.link, '_blank', 'noopener');
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('ovNews').addEventListener('change', renderNewsMarkers);
+document.getElementById('newsSearch').addEventListener('input', ()=>{ renderNewsMarkers(); renderNewsList(); });
+document.getElementById('newsSourceFilter').addEventListener('change', ()=>{ renderNewsMarkers(); renderNewsList(); });
+document.getElementById('newsOnlyMapped').addEventListener('change', ()=>{ renderNewsMarkers(); renderNewsList(); });
+document.getElementById('btnNewsRefresh').addEventListener('click', refreshNews);
+document.getElementById('btnNews').addEventListener('click', ()=>{
+  const badge = document.getElementById('newsBadge');
+  badge.style.display = 'none';
+  if (!newsItems.length) refreshNews();
+});
+
+// واکشی اولیه + بروزرسانی خودکار هر ۵ دقیقه برای دریافت خبرهای تازه
+refreshNews();
+newsAutoTimer = setInterval(refreshNews, 5*60*1000);
+
+/* =========================================================
+   7d-2) STREET VIEW گوگل — نیازمند CONFIG.GOOGLE_MAPS_API_KEY
+   ========================================================= */
+let streetviewPickMode = false;
+const streetviewModal = document.getElementById('streetviewModal');
+document.getElementById('btnStreetview').addEventListener('click', ()=>{
+  streetviewPickMode = !streetviewPickMode;
+  document.getElementById('btnStreetview').classList.toggle('active', streetviewPickMode);
+  hint.style.display = streetviewPickMode ? 'block' : 'none';
+  hint.textContent = 'حالت استریت‌ویو — روی نقشه دوبعدی کلیک کنید تا پانورامای همان نقطه باز شود';
+  if (streetviewPickMode){ mode = null; bufferMode = false; ['btnMeasureDist','btnMeasureArea','btnMarker','btnBuffer'].forEach(id=>document.getElementById(id).classList.remove('active')); }
+});
+function openStreetview(lat, lon){
+  const holder = document.getElementById('streetviewFrameHolder');
+  const note = document.getElementById('streetviewNote');
+  if (!CONFIG.GOOGLE_MAPS_API_KEY){
+    holder.innerHTML = '';
+    note.style.display = 'block';
+  } else {
+    note.style.display = 'none';
+    const src = 'https://www.google.com/maps/embed/v1/streetview?key=' + encodeURIComponent(CONFIG.GOOGLE_MAPS_API_KEY)
+      + '&location=' + lat + ',' + lon + '&heading=0&pitch=0&fov=90';
+    holder.innerHTML = '<iframe src="'+src+'" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>';
+  }
+  streetviewModal.style.display = 'flex';
+}
+document.getElementById('streetviewClose').addEventListener('click', ()=>{
+  streetviewModal.style.display = 'none';
+  document.getElementById('streetviewFrameHolder').innerHTML = '';
+});
+leafletMap.on('click', function(e){
+  if (!streetviewPickMode) return;
+  openStreetview(e.latlng.lat, e.latlng.lng);
+});
 
 /* =========================================================
    7e) داده سفارشی کاربر: بارگذاری GeoJSON / KML / Shapefile (zip)
