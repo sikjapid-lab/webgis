@@ -663,6 +663,8 @@
    برای استفاده تجاری از API رسمی و کلید معتبر هر سرویس استفاده کنید.
    ========================================================= */
 const CONFIG = {
+  OPENSKY_USERNAME: 'sikjapid@gmail.com-api-client', // نام کاربری OpenSky
+  OPENSKY_PASSWORD: '2lzjHSo5FaXLt6fJ9SyweYKiAtW0uZN2',  // کلمه عبور OpenSky
   GOOGLE_MAPS_API_KEY: '',      // برای استریت‌ویو گوگل لازم است
   BING_MAPS_KEY: '',            // https://www.bingmapsportal.com
   PLANET_API_KEY: '',           // https://www.planet.com/account
@@ -1554,6 +1556,10 @@ async function fetchFlights(){
   try{
     const b = leafletMap.getBounds();
     const url = 'https://opensky-network.org/api/states/all?lamin='+b.getSouth()+'&lomin='+b.getWest()+'&lamax='+b.getNorth()+'&lomax='+b.getEast();
+    const headers = {};
+    if (CONFIG.OPENSKY_USERNAME && CONFIG.OPENSKY_PASSWORD) {
+      headers['Authorization'] = 'Basic ' + btoa(CONFIG.OPENSKY_USERNAME + ':' + CONFIG.OPENSKY_PASSWORD);
+    }
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
