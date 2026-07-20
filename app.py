@@ -1,134 +1,164 @@
-"""
-Image -> 3D Model Converter
-----------------------------
-یک اسکریپت تکی که با گرادیو رابط کاربری می‌سازد، کاربر یک عکس (مثلاً چهره)
-بارگذاری می‌کند و با استفاده از مدل رایگان و متن‌باز Shap-E (ساخته OpenAI،
-در دسترس از طریق کتابخانه diffusers) آن را به یک مدل سه‌بعدی (.glb) تبدیل
-می‌کند. کاملاً رایگان، بدون نیاز به کلید API یا سرویس پولی.
+/* =========================================================
+   7d-3) ردیابی زنده پرواز (ADS-B — OpenSky Network با احراز هویت OAuth2)
+   ========================================================= */
 
-اجرا روی Hugging Face Spaces با Docker SDK.
-"""
+// مدیریت کش توکن دسترسی OAuth2
+let openskyAccessToken = null;
+let openskyTokenExpiry = 0;
 
-import os
-import tempfile
+/**
+ * دریافت و مدیریت توکن OAuth2 از سرور OpenSky Network
+ */
+async function getOpenSkyAccessToken() {
+  const now = Date.now();
+  // اگر توکن موجود و همچنان معتبر باشد (با ۵ دقیقه هامش اطمینان)، از توکن کش‌شده استفاده کن
+  if (openskyAccessToken && now < openskyTokenExpiry - 300000) {
+    return openskyAccessToken;
+  }
 
-import gradio as gr
-import numpy as np
-import torch
+  const clientId = CONFIG.OPENSKY_CLIENT_ID || 'sikjapid@gmail.com-api-client';
+  const clientSecret = CONFIG.OPENSKY_CLIENT_SECRET || '2lzjHSo5FaXLt6fJ9SyweYKiAtW0uZN2';
 
-# در برخی محیط‌های Docker/Spaces، Gradio هنگام launch() یک درخواست HTTP به
-# خودش (http://0.0.0.0:PORT) می‌زند تا مطمئن شود سرور بالا آمده؛ اگر آن
-# درخواست به هر دلیلی (شبکه/پراکسی محدودشده) شکست بخورد، Gradio با خطای
-# "localhost is not accessible" کرش می‌کند. چون سرور واقعاً بالا می‌آید
-# (فقط این self-check است که مشکل دارد)، این بررسی را غیرفعال می‌کنیم.
-try:
-    import gradio.networking as _gr_networking
-    _gr_networking.url_ok = lambda url: True
-except Exception as _e:
-    print(f"[WARN] Could not patch gradio.networking.url_ok: {_e}")
-from PIL import Image
-from diffusers import ShapEImg2ImgPipeline
-from diffusers.utils import export_to_gif
+  const targetAuthUrl = 'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
+  // استفاده از پروکسی CORS برای عبور از محدودیت مرورگر
+  const proxyAuthUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetAuthUrl);
 
-# -----------------------------------------------------------------------
-# تنظیمات
-# -----------------------------------------------------------------------
-MODEL_ID = "openai/shap-e-img2img"          # مدل رایگان و متن‌باز
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
+  const bodyParams = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: clientId,
+    client_secret: clientSecret
+  });
 
-print(f"[INFO] Loading {MODEL_ID} on {DEVICE} ...")
-pipe = ShapEImg2ImgPipeline.from_pretrained(MODEL_ID, torch_dtype=DTYPE)
-pipe = pipe.to(DEVICE)
-print("[INFO] Model loaded.")
+  const res = await fetch(proxyAuthUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: bodyParams
+  });
 
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error('خطا در دریافت توکن OAuth2 OpenSky (' + res.status + '): ' + errBody);
+  }
 
-def _preprocess(image: Image.Image, size: int = 256) -> Image.Image:
-    """تصویر ورودی را برای مدل آماده می‌کند (اندازه استاندارد + پس‌زمینه سفید)."""
-    image = image.convert("RGBA")
-    background = Image.new("RGBA", image.size, (255, 255, 255, 255))
-    image = Image.alpha_composite(background, image).convert("RGB")
-    image.thumbnail((size, size))
-    canvas = Image.new("RGB", (size, size), (255, 255, 255))
-    offset = ((size - image.width) // 2, (size - image.height) // 2)
-    canvas.paste(image, offset)
-    return canvas
+  const data = await res.json();
+  openskyAccessToken = data.access_token;
+  // محاسبه زمان انقضا (تبدیل به میلی‌ثانیه)
+  openskyTokenExpiry = now + ((data.expires_in || 1800) * 1000);
+  return openskyAccessToken;
+}
 
+function altitudeColor(altM){
+  if (altM == null || altM < 0) return '#8a8a8a';       // روی زمین / نامشخص
+  if (altM < 1000)  return '#8a8a8a';
+  if (altM < 3000)  return '#3aa0ff';
+  if (altM < 6000)  return '#2dd4e8';
+  if (altM < 9000)  return '#4bd07a';
+  if (altM < 11000) return '#f5c542';
+  return '#f5a623';
+}
 
-def image_to_3d(image: Image.Image, guidance_scale: float, steps: int):
-    if image is None:
-        raise gr.Error("لطفاً ابتدا یک تصویر بارگذاری کنید.")
+function planeDivIcon(color, headingDeg){
+  const rot = (headingDeg || 0);
+  return L.divIcon({
+    className:'flight-icon',
+    html:'<svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate('+rot+'deg)"><path d="M12 2 L15 10 L22 13 L15 15 L16 21 L12 19 L8 21 L9 15 L2 13 L9 10 Z" fill="'+color+'" stroke="#0a0f14" stroke-width="0.8"/></svg>',
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+}
 
-    processed = _preprocess(image)
+let flightLeafletGroup = L.layerGroup();
+let flightCesiumEntities = {};
+let flightTimer = null;
+let flightFetchInFlight = false;
 
-    with torch.no_grad():
-        result = pipe(
-            image=processed,
-            guidance_scale=guidance_scale,
-            num_inference_steps=int(steps),
-            frame_size=256,
-            output_type="mesh",
-        )
+async function fetchFlights(){
+  if (flightFetchInFlight) return;
+  if (!document.getElementById('ovFlights').checked) return;
+  flightFetchInFlight = true;
+  try{
+    // ۱. دریافت توکن احراز هویت
+    const token = await getOpenSkyAccessToken();
 
-    mesh = result.images[0]
+    // ۲. محاسبه محدوده دید نقشه
+    const b = leafletMap.getBounds();
+    const targetApiUrl = 'https://opensky-network.org/api/states/all?lamin='+b.getSouth()+'&lomin='+b.getWest()+'&lamax='+b.getNorth()+'&lomax='+b.getEast();
+    
+    // ۳. فراخوانی API از طریق پروکسی همراه با توکن Authorization Bearer
+    const proxyApiUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetApiUrl);
+    const res = await fetch(proxyApiUrl, {
+      headers: {
+        'Authorization': 'Bearer ' + token
+      }
+    });
 
-    out_dir = tempfile.mkdtemp()
-    glb_path = os.path.join(out_dir, "model.glb")
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const states = data.states || [];
 
-    # ذخیره خروجی به فرمت glb برای نمایش سه‌بعدی و دانلود
-    from diffusers.utils import export_to_glb  # optional helper
-    try:
-        export_to_glb(mesh, glb_path)
-    except Exception:
-        # نسخه‌های قدیمی‌تر diffusers ممکن است export_to_glb نداشته باشند
-        mesh.export(glb_path)
+    // ۴. پاکسازی لایه‌های قبلی
+    leafletMap.removeLayer(flightLeafletGroup);
+    flightLeafletGroup.clearLayers();
+    Object.values(flightCesiumEntities).forEach(ent=>cesiumViewer.entities.remove(ent));
+    flightCesiumEntities = {};
 
-    return glb_path, glb_path
+    // ۵. رندر کردن موقعیت پروازها روی ۲بعدی و ۳بعدی
+    states.forEach(s=>{
+      const [icao24, callsign, originCountry, , , lon, lat, baroAlt, onGround, velocity, trueTrack, , , geoAlt] = s;
+      if (lat == null || lon == null) return;
+      const alt = geoAlt != null ? geoAlt : baroAlt;
+      const color = onGround ? '#8a8a8a' : altitudeColor(alt);
+      const label = (callsign || icao24 || '').trim();
+      const icon = planeDivIcon(color, trueTrack);
+      
+      const popupHtml = '<b>'+escapeHtml(label || 'پرواز ناشناس')+'</b>'
+        + '<div style="font-size:11px;color:#7f92a6;margin-top:4px">'
+        + 'کشور: ' + escapeHtml(originCountry || 'نامشخص') + '<br>'
+        + 'ارتفاع: '+(alt!=null? Math.round(alt)+' m':'—')
+        + ' · سرعت: '+(velocity!=null? Math.round(velocity*3.6)+' km/h':'—')+'</div>'
+        + (onGround ? '<div style="font-size:10.5px;color:#f5a623">روی زمین</div>' : '');
+      
+      // افزودن به نقشه Leaflet
+      const m = L.marker([lat, lon], {icon}).bindPopup(popupHtml);
+      flightLeafletGroup.addLayer(m);
 
+      // افزودن به کره ۳بعدی Cesium
+      const ent = cesiumViewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, alt || 0),
+        point: { pixelSize: 7, color: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+        description: popupHtml
+      });
+      flightCesiumEntities[icao24] = ent;
+    });
 
-demo = gr.Blocks(title="تبدیل تصویر به مدل سه‌بعدی (رایگان)")
-demo.show_api = False
+    flightLeafletGroup.addTo(leafletMap);
+  }catch(err){
+    console.error('خطا در دریافت داده OpenSky', err);
+  }finally{
+    flightFetchInFlight = false;
+  }
+}
 
-with demo:
-    gr.Markdown(
-        """
-        # 🧊 تبدیل تصویر به مدل سه‌بعدی
-        یک عکس (مثلاً پرتره یا هر شیء دیگر) بارگذاری کنید تا با مدل رایگان و
-        متن‌باز **Shap-E** به یک فایل سه‌بعدی `.glb` تبدیل شود.
-        همه‌چیز رایگان است — بدون نیاز به کلید API.
-        """
-    )
+function toggleFlights(on){
+  if (on){
+    fetchFlights();
+    if (flightTimer) clearInterval(flightTimer);
+    flightTimer = setInterval(fetchFlights, 10000); // به‌روزرسانی هر ۱۰ ثانیه با توجه به داشتن حساب کاربردی معتبر
+  } else {
+    if (flightTimer){ clearInterval(flightTimer); flightTimer = null; }
+    leafletMap.removeLayer(flightLeafletGroup);
+    flightLeafletGroup.clearLayers();
+    Object.values(flightCesiumEntities).forEach(ent=>cesiumViewer.entities.remove(ent));
+    flightCesiumEntities = {};
+  }
+}
 
-    with gr.Row():
-        with gr.Column():
-            input_image = gr.Image(type="pil", label="تصویر ورودی")
-            guidance = gr.Slider(1.0, 20.0, value=15.0, step=0.5, label="Guidance Scale")
-            steps = gr.Slider(16, 128, value=64, step=1, label="تعداد مراحل استنتاج")
-            run_btn = gr.Button("تولید مدل سه‌بعدی 🚀", variant="primary")
+document.getElementById('ovFlights').addEventListener('change', e=>toggleFlights(e.target.checked));
 
-        with gr.Column():
-            model_out = gr.Model3D(label="نتیجه سه‌بعدی")
-            file_out = gr.File(label="دانلود فایل .glb")
-
-    run_btn.click(
-        fn=image_to_3d,
-        inputs=[input_image, guidance, steps],
-        outputs=[model_out, file_out],
-    )
-
-    gr.Markdown(
-        """
-        ---
-        ساخته‌شده با [diffusers](https://github.com/huggingface/diffusers) و مدل
-        رایگان [Shap-E](https://huggingface.co/openai/shap-e-img2img).
-        روی CPU کار می‌کند اما با GPU سریع‌تر است.
-        """
-    )
-
-if __name__ == "__main__":
-    demo.queue(max_size=10).launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        show_api=False,
-        share=False,
-    )
+let flightMoveDebounce = null;
+leafletMap.on('moveend', ()=>{
+  if (!document.getElementById('ovFlights').checked) return;
+  clearTimeout(flightMoveDebounce);
+  flightMoveDebounce = setTimeout(fetchFlights, 1200);
+});
