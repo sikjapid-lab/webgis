@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/flights",
+      "destination": "/api/flights.js"
+    }
+  ]
+}
