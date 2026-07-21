@@ -373,6 +373,25 @@
   }
   .select-group-label{ font-weight:700; color:var(--cyan); font-size:10.5px; padding:6px 4px 2px; }
 
+  /* ---------- weather legend ---------- */
+  #wxLegend{
+    position:absolute; bottom:34px; left:50%; transform:translateX(-50%);
+    z-index:1400; display:flex; flex-direction:column; gap:6px; align-items:center;
+    pointer-events:none;
+  }
+  .wx-legend-chip{
+    background:rgba(10,15,20,.88); border:1px solid var(--line); border-radius:8px;
+    padding:6px 12px; display:flex; align-items:center; gap:8px; font-size:10.5px; color:var(--muted);
+    backdrop-filter:blur(6px);
+  }
+  .wx-legend-chip .wx-legend-title{ color:var(--text); font-weight:700; white-space:nowrap; }
+  .wx-legend-bar{ width:150px; height:8px; border-radius:4px; }
+  .wx-legend-scale{ display:flex; justify-content:space-between; width:150px; font-size:9px; color:var(--muted); position:absolute; margin-top:11px; }
+  .wx-point-popup .leaflet-popup-content{ margin:10px 12px; font-size:12px; }
+  .wx-point-popup .wpc-row{ display:flex; justify-content:space-between; gap:14px; padding:2px 0; border-bottom:1px dashed rgba(255,255,255,.08); }
+  .wx-point-popup .wpc-row:last-child{ border-bottom:none; }
+  .wx-point-popup .wpc-val{ color:var(--cyan); font-weight:700; }
+
   .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:8px; }
   .panel-head-btns{ display:flex; gap:6px; flex:none; }
   .panel-head-btns button{
@@ -617,6 +636,8 @@
     </div>
 
     <div id="crosshair-hint">حالت ترسیم فعال است</div>
+
+    <div id="wxLegend"></div>
 
     <div id="navCluster">
       <div class="navbtn" id="navHome" title="بازگشت به دید کلی">
@@ -1803,16 +1824,48 @@ leafletMap.on('moveend', ()=>{
 /* =========================================================
    7d-5) لایه‌های هواشناسی (دما/باد/فشار/ابر/بارندگی) — OpenWeatherMap
    نیازمند CONFIG.OPENWEATHER_API_KEY (رایگان از https://home.openweathermap.org/api_keys)
+   شامل: کاشی‌های تصویری رسمی OWM (دقیقاً همان لایه‌ای که در سایت خودشان می‌بینید)،
+   نوار طیف رنگی (Legend) شبیه Windy/OpenWeather، و کلیک روی نقشه برای مشاهده
+   کارت اطلاعات لحظه‌ای هواشناسی همان نقطه (دما، احساس واقعی، باد، رطوبت، ابر، فشار).
    ========================================================= */
 const WX_LAYERS = {
-  temp:     { owm:'temp_new',          label:'دمای هوا' },
-  wind:     { owm:'wind_new',          label:'باد' },
-  pressure: { owm:'pressure_new',      label:'فشار هوا' },
-  clouds:   { owm:'clouds_new',        label:'ابرناکی' },
-  precip:   { owm:'precipitation_new', label:'بارندگی' }
+  temp:     { owm:'temp_new',          label:'دمای هوا', unit:'°C', stops:['#3a5fcd','#2dd4e8','#4bd07a','#eab308','#f97316','#ef4444'], range:[-40,40] },
+  wind:     { owm:'wind_new',          label:'باد',       unit:'m/s', stops:['#0a2540','#2dd4e8','#4bd07a','#eab308','#ef4444'], range:[0,25] },
+  pressure: { owm:'pressure_new',      label:'فشار هوا',  unit:'hPa', stops:['#3a5fcd','#9fb4c7','#f5f5f5','#f97316','#ef4444'], range:[960,1060] },
+  clouds:   { owm:'clouds_new',        label:'ابرناکی',   unit:'%', stops:['transparent','#9fb4c7','#e5e9ee','#ffffff'], range:[0,100] },
+  precip:   { owm:'precipitation_new', label:'بارندگی',   unit:'mm/h', stops:['transparent','#2dd4e8','#4bd07a','#eab308','#ef4444'], range:[0,20] }
 };
 let wxLeafletLayers = {};
 let wxCesiumLayers = {};
+
+function buildLegendGradient(stops){ return 'linear-gradient(to left, ' + stops.join(',') + ')'; }
+function updateWxLegend(){
+  const box = document.getElementById('wxLegend');
+  box.innerHTML = '';
+  Object.keys(WX_LAYERS).forEach(key=>{
+    if (!wxLeafletLayers[key]) return;
+    const cfg = WX_LAYERS[key];
+    const chip = document.createElement('div');
+    chip.className = 'wx-legend-chip';
+    chip.innerHTML = '<span class="wx-legend-title">'+cfg.label+'</span>'
+      + '<div style="position:relative">'
+      + '<div class="wx-legend-bar" style="background:'+buildLegendGradient(cfg.stops)+'"></div>'
+      + '<div class="wx-legend-scale"><span>'+cfg.range[0]+cfg.unit+'</span><span>'+cfg.range[1]+cfg.unit+'</span></div>'
+      + '</div>';
+    box.appendChild(chip);
+  });
+  if (document.getElementById('ovWaves').checked){
+    const chip = document.createElement('div');
+    chip.className = 'wx-legend-chip';
+    chip.innerHTML = '<span class="wx-legend-title">موج دریا</span>'
+      + '<div style="position:relative">'
+      + '<div class="wx-legend-bar" style="background:'+buildLegendGradient(WAVE_STOPS)+'"></div>'
+      + '<div class="wx-legend-scale"><span>0m</span><span>9m+</span></div>'
+      + '</div>';
+    box.appendChild(chip);
+  }
+}
+
 function toggleWeatherLayer(key, on){
   const statusEl = document.getElementById('wxStatus');
   if (on){
@@ -1823,43 +1876,85 @@ function toggleWeatherLayer(key, on){
     }
     const owm = WX_LAYERS[key].owm;
     const url = 'https://tile.openweathermap.org/map/'+owm+'/{z}/{x}/{y}.png?appid='+encodeURIComponent(CONFIG.OPENWEATHER_API_KEY);
-    wxLeafletLayers[key] = L.tileLayer(url, {opacity:.55, maxZoom:19, attribution:'© OpenWeatherMap'}).addTo(leafletMap);
+    wxLeafletLayers[key] = L.tileLayer(url, {opacity:.6, maxZoom:19, attribution:'© OpenWeatherMap'}).addTo(leafletMap);
     const cesiumLayer = cesiumViewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({url}));
-    cesiumLayer.alpha = .55;
+    cesiumLayer.alpha = .6;
     wxCesiumLayers[key] = cesiumLayer;
-    if (statusEl) statusEl.textContent = 'لایه «'+WX_LAYERS[key].label+'» فعال شد — داده: © OpenWeatherMap';
+    if (statusEl) statusEl.textContent = 'لایه «'+WX_LAYERS[key].label+'» فعال شد — روی نقشه کلیک کنید تا مقدار دقیق همان نقطه را ببینید (© OpenWeatherMap)';
   } else {
     if (wxLeafletLayers[key]){ leafletMap.removeLayer(wxLeafletLayers[key]); delete wxLeafletLayers[key]; }
     if (wxCesiumLayers[key]){ cesiumViewer.imageryLayers.remove(wxCesiumLayers[key], true); delete wxCesiumLayers[key]; }
   }
+  updateWxLegend();
 }
 Object.keys(WX_LAYERS).forEach(key=>{
   document.getElementById('ovWx_'+key).addEventListener('change', e=>toggleWeatherLayer(key, e.target.checked));
 });
 
+// کلیک روی نقشه برای مشاهده کارت اطلاعات هواشناسی لحظه‌ای همان نقطه (مثل کلیک روی نقشه در سایت OpenWeather)
+async function inspectWeatherPoint(lat, lon){
+  if (!CONFIG.OPENWEATHER_API_KEY) return;
+  try{
+    const url = 'https://api.openweathermap.org/data/2.5/weather?lat='+lat+'&lon='+lon+'&appid='+encodeURIComponent(CONFIG.OPENWEATHER_API_KEY)+'&units=metric&lang=fa';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    const desc = (d.weather && d.weather[0] && d.weather[0].description) || '';
+    const icon = (d.weather && d.weather[0] && d.weather[0].icon) || '';
+    const html = '<div style="min-width:170px">'
+      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+      + (icon ? '<img src="https://openweathermap.org/img/wn/'+icon+'.png" width="30" height="30">' : '')
+      + '<b>'+ (d.name || 'این نقطه') + '</b></div>'
+      + (desc ? '<div style="font-size:11px;color:#9fb4c7;margin-bottom:6px">'+escapeHtml(desc)+'</div>' : '')
+      + '<div class="wpc-row"><span>دما</span><span class="wpc-val">'+Math.round(d.main.temp)+' °C</span></div>'
+      + '<div class="wpc-row"><span>احساس واقعی</span><span class="wpc-val">'+Math.round(d.main.feels_like)+' °C</span></div>'
+      + '<div class="wpc-row"><span>سرعت باد</span><span class="wpc-val">'+(d.wind ? d.wind.speed.toFixed(1) : '—')+' m/s</span></div>'
+      + '<div class="wpc-row"><span>رطوبت</span><span class="wpc-val">'+d.main.humidity+' %</span></div>'
+      + '<div class="wpc-row"><span>ابرناکی</span><span class="wpc-val">'+(d.clouds ? d.clouds.all : '—')+' %</span></div>'
+      + '<div class="wpc-row"><span>فشار</span><span class="wpc-val">'+d.main.pressure+' hPa</span></div>'
+      + '</div>';
+    L.popup({className:'wx-point-popup'}).setLatLng([lat, lon]).setContent(html).openOn(leafletMap);
+  }catch(err){ console.error('خطا در دریافت اطلاعات هواشناسی نقطه', err); }
+}
+leafletMap.on('click', function(e){
+  if (mode || bufferMode || streetviewPickMode) return; // تداخل نکند با حالت‌های ترسیم/بافر/استریت‌ویو
+  const anyWxOn = Object.keys(WX_LAYERS).some(k=>document.getElementById('ovWx_'+k).checked);
+  if (anyWxOn) inspectWeatherPoint(e.latlng.lat, e.latlng.lng);
+});
+
 /* =========================================================
    7d-6) وضعیت موج دریا (Open-Meteo Marine API — رایگان و بدون کلید)
-   منطق: به‌جای کاشی تصویری (که برای این داده رایگان وجود ندارد)، یک شبکه
-   نقطه‌ای روی محدوده دید فعلی نقشه ساخته و در یک فراخوانی دسته‌ای (batch)
-   ارتفاع موج هرکدام گرفته می‌شود. نقاط خشکی مقدار خالی برمی‌گردانند و نادیده
-   گرفته می‌شوند.
+   منطق: به‌جای نقاط پراکنده مجزا (که خوانایی پایینی دارد)، یک شبکه نقطه‌ای
+   متراکم روی محدوده دید فعلی نقشه در یک فراخوانی دسته‌ای (batch) گرفته
+   می‌شود؛ سپس روی یک بوم (canvas) کوچک رنگ هر خانه رسم و به‌صورت یک تصویر
+   کشیده‌شده روی محدوده نقشه (Image Overlay) قرار می‌گیرد. کشیده‌شدن تصویر با
+   هموارسازی مرورگر (bilinear) دقیقاً همان جلوه محو و پیوسته‌ای را می‌دهد که
+   در Windy.com می‌بینید. نقاط خشکی شفاف (بدون رنگ) باقی می‌مانند.
    ========================================================= */
-function waveColor(hM){
-  if (hM == null) return '#9fb4c7';
-  if (hM < 0.5) return '#2dd4e8';
-  if (hM < 1.25) return '#4bd07a';
-  if (hM < 2.5) return '#eab308';
-  if (hM < 4) return '#f97316';
-  return '#ef4444';
+const WAVE_STOPS = ['#0a3d62','#2dd4e8','#4bd07a','#eab308','#f97316','#ef4444','#a855f7'];
+function waveColorRGBA(hM){
+  if (hM == null) return [0,0,0,0];
+  const stopsRGB = [[10,61,98],[45,212,232],[75,208,122],[234,179,8],[249,115,22],[239,68,68],[168,85,247]];
+  const stopVals = [0, 0.5, 1.25, 2.5, 4, 6, 9];
+  let i = 0;
+  while (i < stopVals.length-1 && hM > stopVals[i+1]) i++;
+  const t = Math.max(0, Math.min(1, (hM - stopVals[i]) / (stopVals[i+1]-stopVals[i] || 1)));
+  const a = stopsRGB[i], b = stopsRGB[Math.min(i+1, stopsRGB.length-1)];
+  return [
+    Math.round(a[0]+(b[0]-a[0])*t),
+    Math.round(a[1]+(b[1]-a[1])*t),
+    Math.round(a[2]+(b[2]-a[2])*t),
+    190
+  ];
 }
-let wavesLeafletGroup = L.layerGroup();
-let wavesCesiumEntities = [];
 let wavesFetchInFlight = false;
 let wavesMoveDebounce = null;
+let wavesLeafletOverlay = null;
+let wavesCesiumOverlay = null;
+let wavesLastBounds = null;
 
-function waveGridPoints(){
+function waveGridPoints(gridN){
   const b = leafletMap.getBounds();
-  const gridN = 6; // شبکه ۶×۶ = حداکثر ۳۶ نقطه در هر فراخوانی
   const lats = [], lons = [];
   for (let i=0;i<gridN;i++){
     for (let j=0;j<gridN;j++){
@@ -1867,7 +1962,7 @@ function waveGridPoints(){
       lons.push(b.getWest()  + (b.getEast()-b.getWest())  * j/(gridN-1));
     }
   }
-  return {lats, lons};
+  return {lats, lons, bounds:b};
 }
 async function fetchWaves(){
   if (wavesFetchInFlight) return;
@@ -1875,40 +1970,45 @@ async function fetchWaves(){
   wavesFetchInFlight = true;
   const statusEl = document.getElementById('wavesStatus');
   try{
-    const {lats, lons} = waveGridPoints();
+    const gridN = 14; // شبکه ۱۴×۱۴ = ۱۹۶ نقطه در یک فراخوانی دسته‌ای
+    const {lats, lons, bounds} = waveGridPoints(gridN);
     const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + lats.join(',')
-      + '&longitude=' + lons.join(',') + '&current=wave_height,wave_period';
+      + '&longitude=' + lons.join(',') + '&current=wave_height';
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    const list = Array.isArray(data) ? data : [data]; // با یک نقطه، Open-Meteo آبجکت تکی برمی‌گرداند
+    const list = Array.isArray(data) ? data : [data];
 
-    leafletMap.removeLayer(wavesLeafletGroup);
-    wavesLeafletGroup.clearLayers();
-    wavesCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-    wavesCesiumEntities = [];
-
-    let plotted = 0;
-    list.forEach(pt=>{
-      const cur = pt && pt.current;
-      if (!cur || cur.wave_height == null) return; // نقطه خشکی یا بدون داده
-      const lat = pt.latitude, lon = pt.longitude;
-      const h = cur.wave_height;
-      const color = waveColor(h);
-      const marker = L.circleMarker([lat, lon], {radius:7, color:'#0a0f14', weight:1, fillColor:color, fillOpacity:.85})
-        .bindPopup('<b>ارتفاع موج</b><div style="font-size:11px;margin-top:4px">'+h.toFixed(2)+' متر'
-          + (cur.wave_period!=null ? ' · دوره تناوب: '+cur.wave_period.toFixed(1)+' ثانیه' : '')+'</div>');
-      wavesLeafletGroup.addLayer(marker);
-      const ent = cesiumViewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(lon, lat),
-        point: { pixelSize: 9, color: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-        description: 'ارتفاع موج: ' + h.toFixed(2) + ' متر'
-      });
-      wavesCesiumEntities.push(ent);
-      plotted++;
+    // ساخت بوم کوچک gridN×gridN و رنگ‌آمیزی هر خانه بر اساس ارتفاع موج
+    const canvas = document.createElement('canvas');
+    canvas.width = gridN; canvas.height = gridN;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(gridN, gridN);
+    let seaPoints = 0;
+    list.forEach((pt, idx)=>{
+      const h = pt && pt.current ? pt.current.wave_height : null;
+      if (h != null) seaPoints++;
+      const col = waveColorRGBA(h);
+      const row = gridN - 1 - Math.floor(idx / gridN); // بالا=شمال
+      const colIdx = idx % gridN;
+      const p = (row * gridN + colIdx) * 4;
+      img.data[p]=col[0]; img.data[p+1]=col[1]; img.data[p+2]=col[2]; img.data[p+3]=col[3];
     });
-    wavesLeafletGroup.addTo(leafletMap);
-    if (statusEl) statusEl.textContent = plotted + ' نقطه دریایی در محدوده دید نقشه یافت شد (داده: © Open-Meteo Marine)';
+    ctx.putImageData(img, 0, 0);
+    const dataUrl = canvas.toDataURL();
+
+    if (wavesLeafletOverlay) leafletMap.removeLayer(wavesLeafletOverlay);
+    wavesLeafletOverlay = L.imageOverlay(dataUrl, bounds, {opacity:.7, interactive:false}).addTo(leafletMap);
+
+    if (wavesCesiumOverlay) cesiumViewer.imageryLayers.remove(wavesCesiumOverlay, true);
+    wavesCesiumOverlay = cesiumViewer.imageryLayers.addImageryProvider(new Cesium.SingleTileImageryProvider({
+      url: dataUrl,
+      rectangle: Cesium.Rectangle.fromDegrees(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth())
+    }));
+    wavesCesiumOverlay.alpha = .7;
+    wavesLastBounds = bounds;
+
+    if (statusEl) statusEl.textContent = seaPoints + ' از ' + list.length + ' نقطه شبکه روی دریا بود — برای رقم دقیق روی نقشه کلیک کنید (© Open-Meteo Marine)';
   }catch(err){
     console.error('خطا در دریافت داده موج', err);
     if (statusEl) statusEl.textContent = 'خطا در دریافت داده موج دریا — ' + err.message;
@@ -1916,15 +2016,39 @@ async function fetchWaves(){
     wavesFetchInFlight = false;
   }
 }
+async function inspectWavePoint(lat, lon){
+  try{
+    const url = 'https://marine-api.open-meteo.com/v1/marine?latitude='+lat+'&longitude='+lon+'&current=wave_height,wave_direction,wave_period';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    const cur = d.current;
+    if (!cur || cur.wave_height == null){
+      L.popup({className:'wx-point-popup'}).setLatLng([lat, lon]).setContent('<div style="font-size:11px">داده موج برای این نقطه (احتمالاً خشکی) موجود نیست</div>').openOn(leafletMap);
+      return;
+    }
+    const dirTxt = cur.wave_direction != null ? Math.round(cur.wave_direction) + '°' : '—';
+    const html = '<div style="min-width:150px"><b>وضعیت موج</b>'
+      + '<div class="wpc-row"><span>ارتفاع</span><span class="wpc-val">'+cur.wave_height.toFixed(2)+' m</span></div>'
+      + '<div class="wpc-row"><span>جهت</span><span class="wpc-val">'+dirTxt+'</span></div>'
+      + (cur.wave_period!=null ? '<div class="wpc-row"><span>دوره تناوب</span><span class="wpc-val">'+cur.wave_period.toFixed(1)+' s</span></div>' : '')
+      + '</div>';
+    L.popup({className:'wx-point-popup'}).setLatLng([lat, lon]).setContent(html).openOn(leafletMap);
+  }catch(err){ console.error('خطا در دریافت اطلاعات دقیق موج', err); }
+}
+leafletMap.on('click', function(e){
+  if (mode || bufferMode || streetviewPickMode) return;
+  if (document.getElementById('ovWaves').checked) inspectWavePoint(e.latlng.lat, e.latlng.lng);
+});
+
 function toggleWaves(on){
   if (on){
     fetchWaves();
   } else {
-    leafletMap.removeLayer(wavesLeafletGroup);
-    wavesLeafletGroup.clearLayers();
-    wavesCesiumEntities.forEach(ent=>cesiumViewer.entities.remove(ent));
-    wavesCesiumEntities = [];
+    if (wavesLeafletOverlay){ leafletMap.removeLayer(wavesLeafletOverlay); wavesLeafletOverlay = null; }
+    if (wavesCesiumOverlay){ cesiumViewer.imageryLayers.remove(wavesCesiumOverlay, true); wavesCesiumOverlay = null; }
   }
+  updateWxLegend();
 }
 document.getElementById('ovWaves').addEventListener('change', e=>toggleWaves(e.target.checked));
 leafletMap.on('moveend', ()=>{
